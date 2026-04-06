@@ -7,7 +7,9 @@ import { es } from "date-fns/locale";
  */
 export function getFiscalMonth(date: Date): string {
   const adjusted = date.getDate() < 7 ? subMonths(date, 1) : date;
-  return format(adjusted, "MMMM yyyy", { locale: es });
+  const raw = format(adjusted, "MMMM yyyy", { locale: es });
+  // Capitalize first letter to match SQL get_month_7_7() output ("Marzo 2026")
+  return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 /**
