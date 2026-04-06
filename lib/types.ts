@@ -360,6 +360,16 @@ export interface SessionAvailability {
   rating_promedio: number | null;
 }
 
+export interface Commission {
+  team_member_id: string;
+  nombre: string;
+  mes_fiscal: string;
+  comision_closer: number;
+  comision_setter: number;
+  comision_cobranzas: number;
+  comision_total: number;
+}
+
 export interface CloserKPI {
   team_member_id: string;
   nombre: string;

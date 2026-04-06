@@ -16,13 +16,14 @@ import SaleBanner from "@/app/components/SaleBanner";
 import { formatUSD, formatDate } from "@/lib/format";
 import { getFiscalStart, getFiscalEnd, getFiscalMonth, parseLocalDate } from "@/lib/date-utils";
 import { subMonths } from "date-fns";
-import type { MonthlyCash, Payment, Client } from "@/lib/types";
+import type { MonthlyCash, Payment, Client, Commission } from "@/lib/types";
 
 interface Props {
   monthlyCash: MonthlyCash[];
   payments: Payment[];
   overduePayments: Payment[];
   atRiskClients: Client[];
+  commissions: Commission[];
 }
 
 export default function HomeAdmin({
@@ -30,6 +31,7 @@ export default function HomeAdmin({
   payments,
   overduePayments,
   atRiskClients,
+  commissions,
 }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(
     getFiscalStart().toISOString().split("T")[0]
@@ -101,6 +103,25 @@ export default function HomeAdmin({
       };
     });
   }, [payments, selectedMonth]);
+
+  // Commissions for selected fiscal month
+  const monthCommissions = useMemo(() => {
+    return commissions
+      .filter((c) => c.mes_fiscal === currentLabel && c.comision_total > 0)
+      .sort((a, b) => b.comision_total - a.comision_total);
+  }, [commissions, currentLabel]);
+
+  const commissionTotals = useMemo(() => {
+    return monthCommissions.reduce(
+      (acc, c) => ({
+        closer: acc.closer + c.comision_closer,
+        setter: acc.setter + c.comision_setter,
+        cobranzas: acc.cobranzas + c.comision_cobranzas,
+        total: acc.total + c.comision_total,
+      }),
+      { closer: 0, setter: 0, cobranzas: 0, total: 0 }
+    );
+  }, [monthCommissions]);
 
   return (
     <div className="space-y-6">
@@ -218,6 +239,71 @@ export default function HomeAdmin({
               />
             </AreaChart>
           </ResponsiveContainer>
+        )}
+      </div>
+
+      {/* Comisiones del Equipo */}
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">
+          Comisiones del Equipo
+        </h2>
+        {monthCommissions.length === 0 ? (
+          <p className="text-[var(--muted)] text-sm py-4 text-center">
+            Sin comisiones en este periodo
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-[var(--muted)] border-b border-[var(--card-border)]">
+                  <th className="pb-3 pr-4 font-medium">Nombre</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Closer (10%)</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Setter (5%)</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Cobranzas (10%)</th>
+                  <th className="pb-3 font-medium text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthCommissions.map((c) => (
+                  <tr
+                    key={c.team_member_id}
+                    className="border-b border-[var(--card-border)]/50"
+                  >
+                    <td className="py-3 pr-4 text-white font-medium">{c.nombre}</td>
+                    <td className="py-3 pr-4 text-right text-[var(--muted)]">
+                      {c.comision_closer > 0 ? formatUSD(c.comision_closer) : "\u2014"}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-[var(--muted)]">
+                      {c.comision_setter > 0 ? formatUSD(c.comision_setter) : "\u2014"}
+                    </td>
+                    <td className="py-3 pr-4 text-right text-[var(--muted)]">
+                      {c.comision_cobranzas > 0 ? formatUSD(c.comision_cobranzas) : "\u2014"}
+                    </td>
+                    <td className="py-3 text-right text-white font-bold">
+                      {formatUSD(c.comision_total)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-[var(--card-border)]">
+                  <td className="pt-3 pr-4 text-white font-bold">Total</td>
+                  <td className="pt-3 pr-4 text-right text-white font-semibold">
+                    {formatUSD(commissionTotals.closer)}
+                  </td>
+                  <td className="pt-3 pr-4 text-right text-white font-semibold">
+                    {formatUSD(commissionTotals.setter)}
+                  </td>
+                  <td className="pt-3 pr-4 text-right text-white font-semibold">
+                    {formatUSD(commissionTotals.cobranzas)}
+                  </td>
+                  <td className="pt-3 text-right text-[var(--green)] font-bold text-base">
+                    {formatUSD(commissionTotals.total)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         )}
       </div>
 

@@ -5,7 +5,7 @@ import { getFiscalStart, getFiscalEnd, getFiscalMonth } from "@/lib/date-utils";
 import HomeAdmin from "./HomeAdmin";
 import HomeCloser from "./HomeCloser";
 import HomeSetter from "./HomeSetter";
-import type { MonthlyCash, Payment, Client, Lead, CloserKPI } from "@/lib/types";
+import type { MonthlyCash, Payment, Client, Lead, CloserKPI, Commission } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     const fiscalEnd = getFiscalEnd();
     const today = new Date().toISOString().split("T")[0];
 
-    const [cashRes, paymentsRes, overdueRes, atRiskRes] = await Promise.all([
+    const [cashRes, paymentsRes, overdueRes, atRiskRes, commissionsRes] = await Promise.all([
       supabase.from("v_monthly_cash").select("*"),
       supabase
         .from("payments")
@@ -39,6 +39,7 @@ export default async function DashboardPage() {
         .select("*")
         .eq("estado", "activo")
         .lt("health_score", 50),
+      supabase.from("v_commissions").select("*"),
     ]);
 
     return (
@@ -47,6 +48,7 @@ export default async function DashboardPage() {
         payments={(paymentsRes.data as Payment[]) ?? []}
         overduePayments={(overdueRes.data as Payment[]) ?? []}
         atRiskClients={(atRiskRes.data as Client[]) ?? []}
+        commissions={(commissionsRes.data as Commission[]) ?? []}
       />
     );
   }
