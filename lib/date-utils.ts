@@ -1,5 +1,25 @@
-import { format, subMonths, startOfMonth, endOfMonth, setDate, isAfter, isBefore, addMonths } from "date-fns";
+import { format, subMonths, setDate, isAfter, isBefore, addMonths } from "date-fns";
 import { es } from "date-fns/locale";
+
+/**
+ * Parse a YYYY-MM-DD string as a LOCAL date (no timezone shift).
+ * new Date("2026-03-07") in -3 timezone → March 6 21:00 (WRONG)
+ * parseLocalDate("2026-03-07") → March 7 00:00 local (CORRECT)
+ */
+export function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+/**
+ * Format a date as YYYY-MM-DD string (local).
+ */
+export function toDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
 
 /**
  * Get the fiscal month label for a date (7-7 month).
@@ -48,6 +68,7 @@ export function getPrevFiscalStart(): Date {
 
 /**
  * Generate fiscal month options for a selector.
+ * Values are YYYY-MM-DD strings that must be parsed with parseLocalDate().
  */
 export function getFiscalMonthOptions(count: number = 6): { value: string; label: string }[] {
   const options: { value: string; label: string }[] = [];
@@ -55,7 +76,7 @@ export function getFiscalMonthOptions(count: number = 6): { value: string; label
   for (let i = 0; i < count; i++) {
     const start = getFiscalStart(current);
     const label = getFiscalMonth(current);
-    options.push({ value: start.toISOString().split("T")[0], label });
+    options.push({ value: toDateString(start), label });
     current = subMonths(current, 1);
   }
   return options;
