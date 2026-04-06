@@ -369,7 +369,7 @@ export default function ClientDetailClient({ client }: Props) {
               {([1, 2, 3, 4] as const).map((mes) => (
                 <div key={mes}>
                   <label className="text-[var(--muted)] text-xs">Mes {mes}</label>
-                  <p className="text-white">{(client as Record<string, unknown>)[`facturacion_mes_${mes}`] as string || "---"}</p>
+                  <p className="text-white">{(client as unknown as Record<string, unknown>)[`facturacion_mes_${mes}`] as string || "---"}</p>
                 </div>
               ))}
             </div>
