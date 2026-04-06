@@ -211,8 +211,8 @@ export default function HomeAdmin({
                   borderRadius: "8px",
                   color: "white",
                 }}
-                formatter={(value: number) => [formatUSD(value), "Cash acumulado"]}
-                labelFormatter={(label: string) => label}
+                formatter={(value) => [formatUSD(Number(value)), "Cash acumulado"]}
+                labelFormatter={(label) => String(label)}
               />
               <Area
                 type="monotone"

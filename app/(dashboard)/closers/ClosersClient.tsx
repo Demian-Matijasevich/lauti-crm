@@ -253,9 +253,9 @@ export default function ClosersClient({
                 borderRadius: "8px",
                 color: "white",
               }}
-              formatter={(value: number, name: string) => [
+              formatter={(value) => [
                 `${value}%`,
-                name,
+                "",
               ]}
             />
             <Legend />

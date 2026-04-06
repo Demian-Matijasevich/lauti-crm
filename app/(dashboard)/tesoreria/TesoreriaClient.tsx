@@ -306,9 +306,9 @@ export default function TesoreriaClient({ rows }: Props) {
                 borderRadius: "8px",
                 color: "white",
               }}
-              formatter={(value: number, name: string) => [
-                formatUSD(value),
-                name,
+              formatter={(value) => [
+                formatUSD(Number(value)),
+                "",
               ]}
             />
             <Legend />
