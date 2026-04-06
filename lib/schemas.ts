@@ -112,6 +112,36 @@ export const sessionSchema = z.object({
   follow_up_date: z.string().optional(),
 });
 
+export const markPaidSchema = z.object({
+  payment_id: z.string().uuid().nullable(),
+  task_id: z.string().uuid().nullable(),
+  monto_usd: z.number().min(0),
+  monto_ars: z.number().min(0).default(0),
+  metodo_pago: z.enum([
+    "binance", "transferencia", "caja_ahorro_usd",
+    "link_mp", "cash", "uruguayos", "link_stripe",
+  ]),
+  receptor: z.string().min(1).max(100),
+  cobrador_id: z.string().uuid(),
+  comprobante_url: z.string().url().optional(),
+});
+
+export const agentTaskUpdateSchema = z.object({
+  estado: z.enum(["pending", "in_progress", "done", "failed"]).optional(),
+  prioridad: z.number().int().min(1).max(5).optional(),
+  resultado: z.string().max(2000).optional(),
+  notas: z.string().max(2000).optional(),
+  asignado_a: z.enum(["agent", "human"]).optional(),
+  human_assignee_id: z.string().uuid().optional(),
+});
+
+export const cobranzasLogSchema = z.object({
+  task_id: z.string().uuid().nullable(),
+  accion: z.string().min(1).max(2000),
+  author_id: z.string().uuid(),
+  mensaje_enviado: z.string().max(2000).optional(),
+});
+
 export const clientUpdateSchema = z.object({
   estado: z.enum(["activo", "pausado", "inactivo", "solo_skool", "no_termino_pagar"]).optional(),
   estado_seguimiento: z.enum(["para_seguimiento", "no_necesita", "seguimiento_urgente"]).optional(),
