@@ -465,7 +465,7 @@ export default function ClientDetailClient({ client }: Props) {
                       <span className="text-xs text-[var(--muted)]">{formatDate(fu.fecha)}</span>
                     </div>
                     <span className="text-xs text-[var(--muted)]">
-                      por {(fu as Record<string, unknown> & { author?: { nombre: string } }).author?.nombre ?? "---"}
+                      por {(fu as unknown as Record<string, unknown> & { author?: { nombre: string } }).author?.nombre ?? "---"}
                     </span>
                   </div>
                   <p className="text-sm text-white">{fu.notas}</p>

@@ -1,7 +1,7 @@
 import { createServerClient } from "@/lib/supabase-server";
 import type { Lead, TeamMember } from "@/lib/types";
 
-export interface LeadWithTeam extends Lead {
+export interface LeadWithTeam extends Omit<Lead, "setter" | "closer"> {
   setter: TeamMember | null;
   closer: TeamMember | null;
 }
