@@ -318,8 +318,10 @@ export interface MonthlyCash {
   cash_renovaciones: number;
   cash_cuotas: number;
   cash_total: number;
+  facturacion: number;
   ventas_nuevas_count: number;
   renovaciones_count: number;
+  saldo_pendiente_30d: number;
 }
 
 export interface TreasuryRow {

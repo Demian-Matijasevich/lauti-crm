@@ -60,17 +60,16 @@ export default function HomeAdmin({
     return ((curr - previous) / previous) * 100;
   }
 
+  const facturacion = current?.facturacion ?? 0;
   const cashTotal = current?.cash_total ?? 0;
   const cashVentasNuevas = current?.cash_ventas_nuevas ?? 0;
   const cashRenovaciones = current?.cash_renovaciones ?? 0;
   const cashCuotas = current?.cash_cuotas ?? 0;
   const ventasNuevasCount = current?.ventas_nuevas_count ?? 0;
   const renovacionesCount = current?.renovaciones_count ?? 0;
-  const cuotasCobradas = payments.filter(
-    (p) => p.estado === "pagado" && p.numero_cuota > 1 && !p.es_renovacion
-  ).length;
+  const saldoPendiente = current?.saldo_pendiente_30d ?? 0;
   const ticketPromedio =
-    ventasNuevasCount > 0 ? cashVentasNuevas / ventasNuevasCount : 0;
+    ventasNuevasCount > 0 ? facturacion / ventasNuevasCount : 0;
 
   // Daily cumulative cash chart
   const dailyCashData = useMemo(() => {
@@ -119,7 +118,14 @@ export default function HomeAdmin({
       </div>
 
       {/* KPI Grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <KPICard
+          label="Facturaci\u00f3n"
+          value={facturacion}
+          format="usd"
+          delta={delta(facturacion, prev?.facturacion)}
+          icon={"\u{1F4C8}"}
+        />
         <KPICard
           label="Cash Collected"
           value={cashTotal}
@@ -128,42 +134,31 @@ export default function HomeAdmin({
           icon={"\u{1F4B0}"}
         />
         <KPICard
+          label="Renovaciones"
+          value={cashRenovaciones}
+          format="usd"
+          delta={delta(cashRenovaciones, prev?.cash_renovaciones)}
+          icon={"\u{1F504}"}
+        />
+        <KPICard
+          label="Cuotas"
+          value={cashCuotas}
+          format="usd"
+          delta={delta(cashCuotas, prev?.cash_cuotas)}
+          icon={"\u{1F4CB}"}
+        />
+        <KPICard
+          label="Saldo Pendiente (30d)"
+          value={saldoPendiente}
+          format="usd"
+          icon={"\u{23F3}"}
+        />
+        <KPICard
           label="Ventas Nuevas"
           value={ventasNuevasCount}
           format="number"
           delta={delta(ventasNuevasCount, prev?.ventas_nuevas_count)}
           icon={"\u{1F680}"}
-        />
-        <KPICard
-          label="Cash Ventas Nuevas"
-          value={cashVentasNuevas}
-          format="usd"
-          delta={delta(cashVentasNuevas, prev?.cash_ventas_nuevas)}
-        />
-        <KPICard
-          label="Renovaciones"
-          value={renovacionesCount}
-          format="number"
-          delta={delta(renovacionesCount, prev?.renovaciones_count)}
-          icon={"\u{1F504}"}
-        />
-        <KPICard
-          label="Cash Renovaciones"
-          value={cashRenovaciones}
-          format="usd"
-          delta={delta(cashRenovaciones, prev?.cash_renovaciones)}
-        />
-        <KPICard
-          label="Cuotas Cobradas"
-          value={cuotasCobradas}
-          format="number"
-          icon={"\u{1F4CB}"}
-        />
-        <KPICard
-          label="Cash Cuotas"
-          value={cashCuotas}
-          format="usd"
-          delta={delta(cashCuotas, prev?.cash_cuotas)}
         />
         <KPICard
           label="Ticket Promedio"
