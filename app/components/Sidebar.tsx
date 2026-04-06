@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { AuthSession } from "@/lib/types";
+import { isPushSupported, subscribeToPush, getPushPermission } from "@/lib/push-notifications";
 
 interface NavItem {
   href: string;
@@ -152,9 +153,25 @@ export default function Sidebar({ session }: { session: AuthSession }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [pushStatus, setPushStatus] = useState<"idle" | "enabled" | "denied" | "unsupported">("idle");
   const nav = getNav(session);
 
   useEffect(() => { setOpen(false); }, [pathname]);
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setPushStatus("unsupported");
+      return;
+    }
+    const perm = getPushPermission();
+    if (perm === "granted") setPushStatus("enabled");
+    else if (perm === "denied") setPushStatus("denied");
+  }, []);
+
+  const handleEnablePush = async () => {
+    const success = await subscribeToPush(session.team_member_id);
+    setPushStatus(success ? "enabled" : "denied");
+  };
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -212,7 +229,24 @@ export default function Sidebar({ session }: { session: AuthSession }) {
           ))}
         </nav>
 
-        <div className="p-4 border-t border-[var(--card-border)] mt-auto">
+        <div className="p-4 border-t border-[var(--card-border)] mt-auto space-y-2">
+          {pushStatus === "idle" && (
+            <button
+              onClick={handleEnablePush}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted)] hover:text-white hover:bg-purple-900/30 rounded-lg transition-colors w-full"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              Habilitar notificaciones
+            </button>
+          )}
+          {pushStatus === "enabled" && (
+            <span className="flex items-center gap-2 px-3 py-2 text-sm text-green-400">
+              <span className="w-2 h-2 bg-green-400 rounded-full" />
+              Notificaciones activas
+            </span>
+          )}
           <button
             onClick={handleLogout}
             className="w-full text-left text-sm text-[var(--muted)] hover:text-[var(--red)] transition-colors"

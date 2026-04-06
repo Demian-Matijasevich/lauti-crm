@@ -9,6 +9,7 @@ const withPWA = withPWAInit({
   cacheOnFrontEndNav: true,
   aggressiveFrontEndNavCaching: true,
   reloadOnOnline: true,
+  customWorkerSrc: "public/custom-sw.js",
   fallbacks: {
     document: "/offline",
   },
