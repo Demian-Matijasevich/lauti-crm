@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import MonthSelector77 from "@/app/components/MonthSelector77";
 import { formatUSD } from "@/lib/format";
-import { getFiscalStart, getFiscalMonth, getFiscalMonthOptions } from "@/lib/date-utils";
+import { getFiscalStart, getFiscalMonth, getFiscalMonthOptions, parseLocalDate } from "@/lib/date-utils";
 import type { CloserKPI, Lead } from "@/lib/types";
 
 interface Commission {
@@ -44,7 +44,7 @@ export default function ClosersClient({
   );
 
   const currentLabel = useMemo(
-    () => getFiscalMonth(new Date(selectedMonth)),
+    () => getFiscalMonth(parseLocalDate(selectedMonth)),
     [selectedMonth]
   );
 

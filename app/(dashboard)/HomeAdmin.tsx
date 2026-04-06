@@ -14,7 +14,7 @@ import KPICard from "@/app/components/KPICard";
 import MonthSelector77 from "@/app/components/MonthSelector77";
 import SaleBanner from "@/app/components/SaleBanner";
 import { formatUSD, formatDate } from "@/lib/format";
-import { getFiscalStart, getFiscalEnd, getFiscalMonth } from "@/lib/date-utils";
+import { getFiscalStart, getFiscalEnd, getFiscalMonth, parseLocalDate } from "@/lib/date-utils";
 import { subMonths } from "date-fns";
 import type { MonthlyCash, Payment, Client } from "@/lib/types";
 
@@ -36,12 +36,12 @@ export default function HomeAdmin({
   );
 
   const currentLabel = useMemo(() => {
-    const d = new Date(selectedMonth);
+    const d = parseLocalDate(selectedMonth);
     return getFiscalMonth(d);
   }, [selectedMonth]);
 
   const prevLabel = useMemo(() => {
-    const d = new Date(selectedMonth);
+    const d = parseLocalDate(selectedMonth);
     return getFiscalMonth(subMonths(d, 1));
   }, [selectedMonth]);
 
@@ -73,11 +73,11 @@ export default function HomeAdmin({
 
   // Daily cumulative cash chart
   const dailyCashData = useMemo(() => {
-    const start = new Date(selectedMonth);
+    const start = parseLocalDate(selectedMonth);
     const end = getFiscalEnd(start);
     const fiscalPayments = payments.filter((p) => {
       if (!p.fecha_pago || p.estado !== "pagado") return false;
-      const d = new Date(p.fecha_pago);
+      const d = parseLocalDate(p.fecha_pago);
       return d >= start && d <= end;
     });
 
@@ -93,7 +93,7 @@ export default function HomeAdmin({
       cumulative += dailyMap[day];
       return {
         fecha: day,
-        label: new Date(day).toLocaleDateString("es-AR", {
+        label: parseLocalDate(day).toLocaleDateString("es-AR", {
           day: "2-digit",
           month: "short",
         }),

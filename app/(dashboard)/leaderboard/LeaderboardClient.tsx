@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import MonthSelector77 from "@/app/components/MonthSelector77";
 import { formatUSD } from "@/lib/format";
-import { getFiscalStart } from "@/lib/date-utils";
+import { getFiscalStart, parseLocalDate } from "@/lib/date-utils";
 import { getCloserRankings } from "@/lib/gamification";
 import type { Lead } from "@/lib/types";
 import type { CloserRanking } from "@/lib/gamification";
@@ -19,7 +19,7 @@ export default function LeaderboardClient({ leads, currentMemberId }: Props) {
   );
 
   const rankings: CloserRanking[] = useMemo(() => {
-    const d = new Date(selectedMonth);
+    const d = parseLocalDate(selectedMonth);
     return getCloserRankings(leads, d);
   }, [leads, selectedMonth]);
 

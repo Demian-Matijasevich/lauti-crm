@@ -13,7 +13,7 @@ import {
 } from "recharts";
 import MonthSelector77 from "@/app/components/MonthSelector77";
 import { formatUSD, formatARS } from "@/lib/format";
-import { getFiscalStart, getFiscalMonth, getFiscalMonthOptions } from "@/lib/date-utils";
+import { getFiscalStart, getFiscalMonth, getFiscalMonthOptions, parseLocalDate } from "@/lib/date-utils";
 import { RECEPTORES } from "@/lib/constants";
 import type { TreasuryRow } from "@/lib/types";
 
@@ -40,7 +40,7 @@ export default function TesoreriaClient({ rows }: Props) {
   const printRef = useRef<HTMLDivElement>(null);
 
   const currentLabel = useMemo(() => {
-    return getFiscalMonth(new Date(selectedMonth));
+    return getFiscalMonth(parseLocalDate(selectedMonth));
   }, [selectedMonth]);
 
   // Filter rows by selected fiscal month and metodo_pago
