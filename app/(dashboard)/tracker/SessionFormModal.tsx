@@ -55,7 +55,7 @@ export default function SessionFormModal({ session, onClose }: Props) {
   const [feedback, setFeedback] = useState(session?.feedback_cliente ?? "");
   const [actionItems, setActionItems] = useState<ActionItem[]>(
     Array.isArray(session?.action_items)
-      ? (session!.action_items as ActionItem[])
+      ? (session!.action_items as unknown as ActionItem[])
       : []
   );
   const [followUpDate, setFollowUpDate] = useState(session?.follow_up_date ?? "");
