@@ -16,7 +16,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <CommandPalette />
         <RealtimeProvider>
           <SaleBanner />
-          <main className="lg:ml-64 pt-14 lg:pt-0 p-4 lg:p-6">
+          <main className="lg:ml-64 pt-14 lg:pt-0 p-4 lg:p-6 animate-fade-in">
             {children}
           </main>
         </RealtimeProvider>

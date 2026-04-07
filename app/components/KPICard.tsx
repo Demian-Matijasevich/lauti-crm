@@ -7,16 +7,21 @@ interface Props {
   delta?: number | null;
   icon?: string;
   valueClassName?: string;
+  /** Index for stagger animation (0, 1, 2, 3...) */
+  index?: number;
 }
 
-export default function KPICard({ label, value, format = "number", delta, icon, valueClassName }: Props) {
+export default function KPICard({ label, value, format = "number", delta, icon, valueClassName, index = 0 }: Props) {
   const formatted =
     format === "usd" ? formatUSD(value) :
     format === "pct" ? formatPctRaw(value) :
     value.toLocaleString();
 
   return (
-    <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+    <div
+      className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 animate-slide-up"
+      style={{ animationDelay: `${index * 50}ms` }}
+    >
       <div className="flex items-center justify-between mb-1">
         <span className="text-xs text-[var(--muted)] uppercase">{label}</span>
         {icon && <span className="text-lg">{icon}</span>}

@@ -106,11 +106,11 @@ export default function SaleBanner() {
   return (
     <div
       className={`fixed top-4 left-1/2 -translate-x-1/2 z-50 transition-all duration-300 ${
-        isVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
+        isVisible ? "translate-y-0 opacity-100 animate-slide-in-right" : "-translate-y-full opacity-0"
       }`}
     >
       <div
-        className="bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 text-white rounded-xl shadow-2xl px-6 py-4 flex items-center gap-4 min-w-[400px] max-w-[600px] cursor-pointer"
+        className="bg-gradient-to-r from-purple-600 via-purple-500 to-indigo-600 text-white rounded-xl shadow-2xl px-6 py-4 flex items-center gap-4 min-w-[300px] md:min-w-[400px] max-w-[calc(100vw-2rem)] md:max-w-[600px] cursor-pointer"
         onClick={dismissCurrent}
       >
         <span className="text-3xl animate-bounce">{"\uD83D\uDE80"}</span>

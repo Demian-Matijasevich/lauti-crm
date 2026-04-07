@@ -54,6 +54,8 @@ function getNav(session: AuthSession): NavSection[] {
         items: [
           { href: "/closers", label: "Closers Analytics", icon: "\u{1F3C6}" },
           { href: "/leaderboard", label: "Leaderboard", icon: "\u{1F947}" },
+          { href: "/scorecard", label: "Scorecard", icon: "\u{1F4CA}" },
+          { href: "/funnel", label: "Funnel", icon: "\u{1F504}" },
           { href: "/comparativa", label: "Comparativa", icon: "\u{1F4CA}" },
           { href: "/ig-metrics", label: "IG Metrics", icon: "\u{1F4F1}" },
           { href: "/reportes", label: "Reportes Diarios", icon: "\u{1F4DD}" },

@@ -353,7 +353,7 @@ export default function HomeAdmin({
               {/* Progress bar — bigger */}
               <div className="w-full h-10 rounded-full bg-white/10 overflow-hidden flex mb-5 shadow-inner">
                 <div
-                  className="h-full bg-[var(--green)] transition-all duration-500"
+                  className="h-full bg-[var(--green)] transition-all duration-500 progress-bar-animated"
                   style={{ width: `${Math.min(pctCollected, 100)}%` }}
                   title={`Cobrado: ${formatUSD(revPrediction.cashCollected)}`}
                 />
