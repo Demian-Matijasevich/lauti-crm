@@ -397,6 +397,20 @@ export interface CloserKPI {
 }
 
 // ========================================
+// CLIENT NOTES
+// ========================================
+
+export interface ClientNote {
+  id: string;
+  client_id: string;
+  author_id: string;
+  content: string;
+  pinned: boolean;
+  created_at: string;
+  author?: { nombre: string };
+}
+
+// ========================================
 // AUTH
 // ========================================
 

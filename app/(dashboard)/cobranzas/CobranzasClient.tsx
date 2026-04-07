@@ -570,6 +570,10 @@ export default function CobranzasClient({
                   </div>
                 </div>
               </div>
+              {/* Client notes section */}
+              {item.client_id && (
+                <ClientNotesInline clientId={item.client_id} />
+              )}
             </td>
           </tr>
         )}
@@ -1475,5 +1479,61 @@ function NoteMiniForm({
         </button>
       </div>
     </form>
+  );
+}
+
+// ========================================
+// ClientNotesInline -- shows recent notes for a client in expanded row
+// ========================================
+function ClientNotesInline({ clientId }: { clientId: string }) {
+  const [notes, setNotes] = useState<{ id: string; content: string; created_at: string; author?: { nombre: string } }[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  async function loadNotes() {
+    try {
+      const res = await fetch(`/api/client-notes?client_id=${clientId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotes(data.notes?.slice(0, 5) ?? []);
+      }
+    } finally {
+      setLoaded(true);
+    }
+  }
+
+  function handleToggle() {
+    if (!loaded) loadNotes();
+    setExpanded(!expanded);
+  }
+
+  return (
+    <div className="mt-3 border-t border-[var(--card-border)] pt-3">
+      <button
+        onClick={handleToggle}
+        className="text-xs text-[var(--purple-light)] hover:text-white transition-colors"
+      >
+        {expanded ? "Ocultar notas" : "Ver notas del equipo"}
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-1">
+          {!loaded ? (
+            <p className="text-xs text-[var(--muted)]">Cargando...</p>
+          ) : notes.length === 0 ? (
+            <p className="text-xs text-[var(--muted)]">Sin notas</p>
+          ) : (
+            notes.map((note) => (
+              <div key={note.id} className="text-xs p-2 bg-white/5 rounded">
+                <span className="text-[var(--purple-light)] font-medium">{note.author?.nombre ?? "---"}</span>
+                <span className="text-[var(--muted)] ml-2">
+                  {new Date(note.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short" })}
+                </span>
+                <p className="text-white mt-0.5">{note.content}</p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   );
 }

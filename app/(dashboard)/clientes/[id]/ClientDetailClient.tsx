@@ -7,13 +7,13 @@ import StatusBadge from "@/app/components/StatusBadge";
 import KPICard from "@/app/components/KPICard";
 import EmptyState from "@/app/components/EmptyState";
 import type { ClientWithRelations } from "@/lib/queries/clients";
-import type { AuthSession, SemanaEstado, FollowUpTipo } from "@/lib/types";
+import type { AuthSession, SemanaEstado, FollowUpTipo, ClientNote } from "@/lib/types";
 import { healthToSemaforo } from "@/lib/types";
 import { PROGRAMS, CLIENT_ESTADOS_LABELS } from "@/lib/constants";
 import { formatUSD, formatDate, daysUntil } from "@/lib/format";
 import { parseLocalDate } from "@/lib/date-utils";
 
-type Tab = "overview" | "pagos" | "sesiones" | "seguimiento" | "followups" | "renovaciones";
+type Tab = "overview" | "pagos" | "sesiones" | "seguimiento" | "followups" | "renovaciones" | "notas";
 
 interface Props {
   client: ClientWithRelations;
@@ -26,11 +26,17 @@ const SEMANA_LABELS: Record<string, string> = {
   escalando_anuncios: "Escalando Anuncios",
 };
 
-export default function ClientDetailClient({ client }: Props) {
+export default function ClientDetailClient({ client, session }: Props) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("overview");
   const [showFollowUpForm, setShowFollowUpForm] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Notes state
+  const [notes, setNotes] = useState<ClientNote[]>([]);
+  const [notesLoaded, setNotesLoaded] = useState(false);
+  const [noteContent, setNoteContent] = useState("");
+  const [noteSaving, setNoteSaving] = useState(false);
 
   // Follow-up form state
   const [fuTipo, setFuTipo] = useState<FollowUpTipo>("whatsapp");
@@ -45,6 +51,7 @@ export default function ClientDetailClient({ client }: Props) {
     { key: "seguimiento", label: "Seguimiento" },
     { key: "followups", label: `Follow-ups (${client.follow_ups.length})` },
     { key: "renovaciones", label: `Renovaciones (${client.renewals.length})` },
+    { key: "notas", label: "Notas del equipo" },
   ];
 
   const diasRestantes = (() => {
@@ -77,6 +84,41 @@ export default function ClientDetailClient({ client }: Props) {
     });
     setSaving(false);
     router.refresh();
+  }
+
+  async function loadNotes() {
+    try {
+      const res = await fetch(`/api/client-notes?client_id=${client.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setNotes(data.notes ?? []);
+      }
+    } finally {
+      setNotesLoaded(true);
+    }
+  }
+
+  async function handleAddNote() {
+    if (!noteContent.trim()) return;
+    setNoteSaving(true);
+    try {
+      const res = await fetch("/api/client-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: client.id, content: noteContent }),
+      });
+      if (res.ok) {
+        setNoteContent("");
+        loadNotes();
+      }
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
+  // Load notes when tab is selected
+  if (tab === "notas" && !notesLoaded) {
+    loadNotes();
   }
 
   async function handleAddFollowUp() {
@@ -122,7 +164,7 @@ export default function ClientDetailClient({ client }: Props) {
             <Semaforo value={healthToSemaforo(client.health_score)} label={`Salud: ${client.health_score}`} />
           </div>
         </div>
-        <div className="text-right">
+        <div className="text-right space-y-2">
           {diasRestantes !== null && (
             <p className={`text-lg font-bold ${diasRestantes <= 0 ? "text-[var(--red)]" : diasRestantes <= 15 ? "text-[var(--yellow)]" : "text-white"}`}>
               {diasRestantes <= 0 ? `Vencido (${Math.abs(diasRestantes)}d)` : `${diasRestantes} dias`}
@@ -131,6 +173,20 @@ export default function ClientDetailClient({ client }: Props) {
           <p className="text-xs text-[var(--muted)]">
             {client.fecha_onboarding ? `Onboarding: ${formatDate(client.fecha_onboarding)}` : "Sin onboarding"}
           </p>
+          <div className="flex gap-2 justify-end print:hidden">
+            <button
+              onClick={() => window.print()}
+              className="px-3 py-1.5 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-white text-xs hover:bg-white/10 transition-colors"
+            >
+              Generar PDF
+            </button>
+            <button
+              onClick={() => router.push(`/clientes/${client.id}/estado-cuenta`)}
+              className="px-3 py-1.5 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-white text-xs hover:bg-white/10 transition-colors"
+            >
+              Estado de Cuenta
+            </button>
+          </div>
         </div>
       </div>
 
@@ -513,6 +569,59 @@ export default function ClientDetailClient({ client }: Props) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "notas" && (
+        <div className="space-y-4">
+          {/* Add note form */}
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 space-y-3">
+            <textarea
+              value={noteContent}
+              onChange={(e) => setNoteContent(e.target.value)}
+              placeholder="Escribir una nota para el equipo..."
+              className="w-full px-3 py-2 rounded-lg bg-black/20 border border-[var(--card-border)] text-white text-sm focus:border-[var(--purple)] outline-none resize-none"
+              rows={3}
+            />
+            <div className="flex justify-end">
+              <button
+                onClick={handleAddNote}
+                disabled={noteSaving || !noteContent.trim()}
+                className="px-4 py-2 rounded-lg bg-[var(--purple)] text-white text-sm disabled:opacity-50 hover:bg-[var(--purple-dark)] transition-colors"
+              >
+                {noteSaving ? "Enviando..." : "Enviar"}
+              </button>
+            </div>
+          </div>
+
+          {/* Notes list */}
+          {!notesLoaded ? (
+            <p className="text-[var(--muted)] text-sm text-center py-4">Cargando notas...</p>
+          ) : notes.length === 0 ? (
+            <EmptyState message="Sin notas del equipo" />
+          ) : (
+            <div className="space-y-3">
+              {notes.map((note) => (
+                <div
+                  key={note.id}
+                  className={`bg-[var(--card-bg)] border rounded-xl p-4 ${
+                    note.pinned ? "border-[var(--purple)]" : "border-[var(--card-border)]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      {note.pinned && <span className="text-xs text-[var(--purple-light)]">Fijada</span>}
+                      <span className="text-sm font-medium text-white">{note.author?.nombre ?? "---"}</span>
+                    </div>
+                    <span className="text-xs text-[var(--muted)]">
+                      {new Date(note.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-white whitespace-pre-wrap">{note.content}</p>
+                </div>
+              ))}
             </div>
           )}
         </div>

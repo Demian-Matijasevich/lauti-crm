@@ -13,9 +13,10 @@ import { parseLocalDate } from "@/lib/date-utils";
 
 interface Props {
   clients: Client[];
+  notesCounts?: Record<string, number>;
 }
 
-export default function ClientesClient({ clients }: Props) {
+export default function ClientesClient({ clients, notesCounts = {} }: Props) {
   const router = useRouter();
   const [filterEstado, setFilterEstado] = useState<string>("todos");
   const [filterPrograma, setFilterPrograma] = useState<string>("todos");
@@ -107,6 +108,21 @@ export default function ClientesClient({ clients }: Props) {
       render: (row: Record<string, unknown>) => {
         const c = row as unknown as Client;
         return <StatusBadge status={c.estado_contacto} />;
+      },
+    },
+    {
+      key: "notas",
+      label: "Notas",
+      render: (row: Record<string, unknown>) => {
+        const c = row as unknown as Client;
+        const count = notesCounts[c.id] ?? 0;
+        if (count === 0) return <span className="text-[var(--muted)]">---</span>;
+        return (
+          <span className="text-sm text-[var(--purple-light)] flex items-center gap-1">
+            <span>{"\u{1F4AC}"}</span>
+            <span>{count}</span>
+          </span>
+        );
       },
     },
   ];

@@ -28,6 +28,7 @@ function getNav(session: AuthSession): NavSection[] {
         title: "PRINCIPAL",
         items: [
           { href: "/", label: "Dashboard", icon: "\u{1F4CA}" },
+          { href: "/calendario", label: "Calendario", icon: "\u{1F4C5}" },
           { href: "/pipeline", label: "Pipeline", icon: "\u{1F4DE}" },
           { href: "/llamadas", label: "CRM Llamadas", icon: "\u{1F4CB}" },
           { href: "/tesoreria", label: "Tesorer\u00eda", icon: "\u{1F3E6}" },

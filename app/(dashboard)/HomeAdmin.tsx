@@ -18,6 +18,15 @@ import { getFiscalStart, getFiscalEnd, getFiscalMonth, parseLocalDate } from "@/
 import { subMonths } from "date-fns";
 import type { MonthlyCash, Payment, Client, Commission, AtCommission } from "@/lib/types";
 
+interface RevPrediction {
+  cashCollected: number;
+  cuotasPendientes: number;
+  pipelineTotal: number;
+  pipelineCount: number;
+  renewalCount: number;
+  renewalAvgValue: number;
+}
+
 interface Props {
   monthlyCash: MonthlyCash[];
   payments: Payment[];
@@ -27,6 +36,7 @@ interface Props {
   atCommissions: AtCommission[];
   atCashCollected: number;
   atCuotas: number;
+  revPrediction: RevPrediction;
 }
 
 export default function HomeAdmin({
@@ -38,6 +48,7 @@ export default function HomeAdmin({
   atCommissions,
   atCashCollected,
   atCuotas,
+  revPrediction,
 }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(
     getFiscalStart().toISOString().split("T")[0]
@@ -195,6 +206,83 @@ export default function HomeAdmin({
           icon={"\u{1F3AF}"}
         />
       </div>
+
+      {/* Proyeccion del Mes */}
+      {(() => {
+        const RENEWAL_RATE = 0.4; // 40% estimated close rate for renewals
+        const renewalExpected = revPrediction.renewalCount * revPrediction.renewalAvgValue * RENEWAL_RATE;
+        const projected = revPrediction.cashCollected + revPrediction.cuotasPendientes + renewalExpected;
+        const maxProjected = projected + revPrediction.pipelineTotal * 0.3; // 30% pipeline close rate
+        const pctCollected = maxProjected > 0 ? (revPrediction.cashCollected / maxProjected) * 100 : 0;
+        const pctCuotas = maxProjected > 0 ? (revPrediction.cuotasPendientes / maxProjected) * 100 : 0;
+        const pctRenewals = maxProjected > 0 ? (renewalExpected / maxProjected) * 100 : 0;
+        const pctPipeline = maxProjected > 0 ? ((revPrediction.pipelineTotal * 0.3) / maxProjected) * 100 : 0;
+
+        return (
+          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+            <h2 className="text-lg font-semibold text-white mb-1">Proyeccion del Mes</h2>
+            <p className="text-sm text-[var(--muted)] mb-4">
+              Cobrado: {formatUSD(revPrediction.cashCollected)} / Proyectado: {formatUSD(Math.round(maxProjected))}
+            </p>
+
+            {/* Progress bar */}
+            <div className="w-full h-6 rounded-full bg-white/10 overflow-hidden flex mb-4">
+              <div
+                className="h-full bg-[var(--green)]"
+                style={{ width: `${Math.min(pctCollected, 100)}%` }}
+                title={`Cobrado: ${formatUSD(revPrediction.cashCollected)}`}
+              />
+              <div
+                className="h-full bg-[var(--yellow)]"
+                style={{ width: `${Math.min(pctCuotas, 100 - pctCollected)}%` }}
+                title={`Cuotas esperadas: ${formatUSD(revPrediction.cuotasPendientes)}`}
+              />
+              <div
+                className="h-full bg-emerald-500"
+                style={{ width: `${Math.min(pctRenewals, 100 - pctCollected - pctCuotas)}%` }}
+                title={`Renovaciones: ${formatUSD(Math.round(renewalExpected))}`}
+              />
+              <div
+                className="h-full bg-blue-500/50"
+                style={{ width: `${Math.min(pctPipeline, 100 - pctCollected - pctCuotas - pctRenewals)}%` }}
+                title={`Pipeline: ${formatUSD(Math.round(revPrediction.pipelineTotal * 0.3))}`}
+              />
+            </div>
+
+            {/* Breakdown */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-sm bg-[var(--green)]" />
+                <div>
+                  <p className="text-white font-medium">{formatUSD(revPrediction.cashCollected)}</p>
+                  <p className="text-[var(--muted)] text-xs">Cerrado</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-sm bg-[var(--yellow)]" />
+                <div>
+                  <p className="text-white font-medium">{formatUSD(revPrediction.cuotasPendientes)}</p>
+                  <p className="text-[var(--muted)] text-xs">Cuotas esperadas</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-sm bg-emerald-500" />
+                <div>
+                  <p className="text-white font-medium">{formatUSD(Math.round(renewalExpected))}</p>
+                  <p className="text-[var(--muted)] text-xs">Renovaciones ({revPrediction.renewalCount})</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-sm bg-blue-500/50" />
+                <div>
+                  <p className="text-white font-medium">{formatUSD(revPrediction.pipelineTotal)}</p>
+                  <p className="text-[var(--muted)] text-xs">Pipeline ({revPrediction.pipelineCount} leads)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Cash Acumulado Chart */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">

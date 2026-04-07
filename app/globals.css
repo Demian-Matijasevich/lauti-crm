@@ -38,3 +38,78 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+/* Print styles for PDF generation */
+@media print {
+  body {
+    background: white !important;
+    color: #111 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Hide sidebar and nav */
+  aside,
+  .lg\\:ml-64,
+  nav,
+  .print\\:hidden {
+    display: none !important;
+  }
+
+  main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Override dark theme for print */
+  * {
+    color: #111 !important;
+    border-color: #ddd !important;
+  }
+
+  .bg-\\[var\\(--card-bg\\)\\],
+  .bg-\\[var\\(--background\\)\\],
+  [class*="bg-"] {
+    background: white !important;
+  }
+
+  .text-white {
+    color: #111 !important;
+  }
+
+  .text-\\[var\\(--muted\\)\\] {
+    color: #666 !important;
+  }
+
+  .text-\\[var\\(--purple-light\\)\\] {
+    color: #6d28d9 !important;
+  }
+
+  .text-\\[var\\(--green\\)\\] {
+    color: #16a34a !important;
+  }
+
+  .text-\\[var\\(--red\\)\\] {
+    color: #dc2626 !important;
+  }
+
+  .text-\\[var\\(--yellow\\)\\] {
+    color: #ca8a04 !important;
+  }
+
+  table {
+    border-collapse: collapse;
+  }
+
+  th, td {
+    border: 1px solid #ddd !important;
+    padding: 6px 10px !important;
+  }
+
+  /* Estado de Cuenta specific */
+  .estado-cuenta-page {
+    background: white !important;
+    color: #111 !important;
+    padding: 40px !important;
+  }
+}
