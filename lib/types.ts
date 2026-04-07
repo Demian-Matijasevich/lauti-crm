@@ -23,7 +23,7 @@ export type Programa =
 
 export type ConceptoPago = "pif" | "fee" | "primera_cuota" | "segunda_cuota";
 export type PlanPago = "paid_in_full" | "2_cuotas" | "3_cuotas" | "personalizado";
-export type PaymentEstado = "pendiente" | "pagado" | "perdido";
+export type PaymentEstado = "pendiente" | "pagado" | "perdido" | "refund";
 
 export type MetodoPago =
   | "binance" | "transferencia" | "caja_ahorro_usd"
@@ -321,6 +321,7 @@ export interface MonthlyCash {
   cash_renovaciones: number;
   cash_cuotas: number;
   cash_total: number;
+  refunds: number;
   facturacion: number;
   ventas_nuevas_count: number;
   renovaciones_count: number;

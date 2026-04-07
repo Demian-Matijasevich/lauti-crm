@@ -74,6 +74,7 @@ export default function HomeAdmin({
   const cashCuotas = atCuotas;
   const ventasNuevasCount = current?.ventas_nuevas_count ?? 0;
   const renovacionesCount = current?.renovaciones_count ?? 0;
+  const refunds = current?.refunds ?? 0;
   const saldoPendiente = current?.saldo_pendiente_30d ?? 0;
   const ticketPromedio =
     ventasNuevasCount > 0 ? facturacion / ventasNuevasCount : 0;
@@ -203,6 +204,15 @@ export default function HomeAdmin({
           delta={delta(cashCuotas, prev?.cash_cuotas)}
           icon={"\u{1F4CB}"}
         />
+        {refunds > 0 && (
+          <KPICard
+            label="Refunds"
+            value={-refunds}
+            format="usd"
+            icon={"\u{1F6A8}"}
+            valueClassName="text-[var(--red)]"
+          />
+        )}
         <KPICard
           label="Saldo Pendiente (30d)"
           value={saldoPendiente}
