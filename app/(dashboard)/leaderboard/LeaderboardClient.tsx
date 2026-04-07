@@ -5,15 +5,16 @@ import MonthSelector77 from "@/app/components/MonthSelector77";
 import { formatUSD } from "@/lib/format";
 import { getFiscalStart, parseLocalDate } from "@/lib/date-utils";
 import { getCloserRankings } from "@/lib/gamification";
-import type { Lead } from "@/lib/types";
+import type { Lead, AtCommission } from "@/lib/types";
 import type { CloserRanking } from "@/lib/gamification";
 
 interface Props {
   leads: Lead[];
   currentMemberId: string;
+  commissions: AtCommission[];
 }
 
-export default function LeaderboardClient({ leads, currentMemberId }: Props) {
+export default function LeaderboardClient({ leads, currentMemberId, commissions }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(
     getFiscalStart().toISOString().split("T")[0]
   );
@@ -22,6 +23,13 @@ export default function LeaderboardClient({ leads, currentMemberId }: Props) {
     const d = parseLocalDate(selectedMonth);
     return getCloserRankings(leads, d);
   }, [leads, selectedMonth]);
+
+  // Commission lookup by team member id
+  const commMap = useMemo(() => {
+    const map = new Map<string, AtCommission>();
+    for (const c of commissions) map.set(c.id, c);
+    return map;
+  }, [commissions]);
 
   const medals = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
 
@@ -105,17 +113,20 @@ export default function LeaderboardClient({ leads, currentMemberId }: Props) {
               <thead>
                 <tr className="text-[var(--muted)] text-xs uppercase">
                   <th className="text-left py-2 px-3">#</th>
-                  <th className="text-left py-2 px-3">Closer</th>
-                  <th className="text-right py-2 px-3">Cash Collected</th>
+                  <th className="text-left py-2 px-3">Nombre</th>
+                  <th className="text-right py-2 px-3">Cash</th>
                   <th className="text-right py-2 px-3">Cierres</th>
                   <th className="text-right py-2 px-3">Streak</th>
                   <th className="text-left py-2 px-3">Badges</th>
+                  <th className="text-right py-2 px-3">Comision Total</th>
+                  <th className="text-left py-2 px-3">Detalle</th>
                 </tr>
               </thead>
               <tbody>
                 {rankings.map((r) => {
                   const isMe = r.closerId === currentMemberId;
                   const earnedBadges = r.badges.filter((b) => b.earned);
+                  const comm = commMap.get(r.closerId);
 
                   return (
                     <tr
@@ -174,6 +185,23 @@ export default function LeaderboardClient({ leads, currentMemberId }: Props) {
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td className="py-3 px-3 text-right font-bold text-[var(--yellow)]">
+                        {comm && comm.at_comision_total > 0
+                          ? formatUSD(comm.at_comision_total)
+                          : <span className="text-[var(--muted)]">{"\u2014"}</span>
+                        }
+                      </td>
+                      <td className="py-3 px-3 text-xs text-[var(--muted)]">
+                        {comm && comm.at_comision_total > 0 ? (
+                          <span title={`Closer: ${formatUSD(comm.at_comision_closer)} + Setter: ${formatUSD(comm.at_comision_setter)}${comm.at_comision_cobranzas > 0 ? ` + Cobranzas: ${formatUSD(comm.at_comision_cobranzas)}` : ""}`}>
+                            Closer: {formatUSD(comm.at_comision_closer)}
+                            {comm.at_comision_setter > 0 && ` + Setter: ${formatUSD(comm.at_comision_setter)}`}
+                            {comm.at_comision_cobranzas > 0 && ` + Cobr: ${formatUSD(comm.at_comision_cobranzas)}`}
+                          </span>
+                        ) : (
+                          "\u2014"
+                        )}
                       </td>
                     </tr>
                   );

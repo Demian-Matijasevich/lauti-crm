@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import type { TeamMember, AuthSession, LeadScore, Payment } from "@/lib/types";
 import type { LeadWithTeam } from "@/lib/queries/leads";
-import { LEAD_ESTADOS_LABELS } from "@/lib/constants";
+import { LEAD_ESTADOS_LABELS, PROGRAMS } from "@/lib/constants";
 import { formatUSD, formatDate } from "@/lib/format";
 import { getFiscalMonthOptions, getFiscalEnd, parseLocalDate } from "@/lib/date-utils";
 import StatusBadge from "@/app/components/StatusBadge";
@@ -42,6 +42,35 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
   const [setterFilter, setSetterFilter] = useState<string>("todos");
   const [monthFilter, setMonthFilter] = useState<string>("todos");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Inline edit state
+  const [editData, setEditData] = useState<Record<string, unknown>>({});
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+
+  const handleSave = useCallback(async (leadId: string) => {
+    setSaving(true);
+    setSaveMsg(null);
+    try {
+      const res = await fetch("/api/llamadas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: leadId, ...editData }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setSaveMsg("Guardado correctamente");
+        // Reload page to reflect changes
+        setTimeout(() => window.location.reload(), 800);
+      } else {
+        setSaveMsg(`Error: ${json.error || "desconocido"}`);
+      }
+    } catch {
+      setSaveMsg("Error de red");
+    } finally {
+      setSaving(false);
+    }
+  }, [editData]);
 
   const monthOptions = useMemo(() => getFiscalMonthOptions(12), []);
 
@@ -440,6 +469,22 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
       {expandedId && (() => {
         const lead = filtered.find((l) => l.id === expandedId);
         if (!lead) return null;
+        // Initialize edit data when expanding a different lead
+        if (editData._leadId !== lead.id) {
+          // Use setTimeout to avoid setState during render
+          setTimeout(() => {
+            setEditData({
+              _leadId: lead.id,
+              estado: lead.estado,
+              programa_pitcheado: lead.programa_pitcheado || "",
+              lead_calificado: lead.lead_calificado || "",
+              ticket_total: lead.ticket_total,
+              notas_internas: lead.notas_internas || "",
+              reporte_general: lead.reporte_general || "",
+            });
+            setSaveMsg(null);
+          }, 0);
+        }
         return (
           <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6 space-y-4">
             <div className="flex items-center justify-between">
@@ -466,16 +511,8 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
                 <p>{lead.fuente || "---"}</p>
               </div>
               <div>
-                <p className="text-[var(--muted)] text-xs mb-0.5">Programa</p>
-                <p>{lead.programa_pitcheado || "---"}</p>
-              </div>
-              <div>
                 <p className="text-[var(--muted)] text-xs mb-0.5">Plan de pago</p>
                 <p>{lead.plan_pago || "---"}</p>
-              </div>
-              <div>
-                <p className="text-[var(--muted)] text-xs mb-0.5">Calificado</p>
-                <p>{lead.lead_calificado || "---"}</p>
               </div>
               <div>
                 <p className="text-[var(--muted)] text-xs mb-0.5">Decisor</p>
@@ -487,33 +524,107 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
               </div>
             </div>
 
-            {(lead.contexto_setter || lead.reporte_general || lead.notas_internas) && (
-              <div className="space-y-3 pt-3 border-t border-[var(--card-border)]">
-                {lead.contexto_setter && (
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Contexto setter</p>
-                    <p className="text-sm leading-relaxed">{lead.contexto_setter}</p>
-                  </div>
-                )}
-                {lead.reporte_general && (
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Reporte general</p>
-                    <p className="text-sm leading-relaxed">{lead.reporte_general}</p>
-                  </div>
-                )}
-                {lead.notas_internas && (
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Notas internas</p>
-                    <p className="text-sm leading-relaxed">{lead.notas_internas}</p>
-                  </div>
-                )}
+            {lead.contexto_setter && (
+              <div className="pt-3 border-t border-[var(--card-border)]">
+                <p className="text-xs text-[var(--muted)] mb-1">Contexto setter</p>
+                <p className="text-sm leading-relaxed">{lead.contexto_setter}</p>
               </div>
             )}
+
+            {/* Inline Edit Form */}
+            <div className="pt-3 border-t border-[var(--card-border)] space-y-4">
+              <h4 className="text-sm font-semibold text-[var(--purple-light)]">Editar lead</h4>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-xs text-[var(--muted)] mb-1 block">Estado</label>
+                  <select
+                    value={(editData.estado as string) || lead.estado}
+                    onChange={(e) => setEditData({ ...editData, estado: e.target.value })}
+                    className={selectClass}
+                  >
+                    {estadoOptions.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--muted)] mb-1 block">Programa pitcheado</label>
+                  <select
+                    value={(editData.programa_pitcheado as string) || ""}
+                    onChange={(e) => setEditData({ ...editData, programa_pitcheado: e.target.value || null })}
+                    className={selectClass}
+                  >
+                    <option value="">Sin programa</option>
+                    {Object.entries(PROGRAMS).map(([key, p]) => (
+                      <option key={key} value={key}>{p.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--muted)] mb-1 block">Lead calificado</label>
+                  <select
+                    value={(editData.lead_calificado as string) || ""}
+                    onChange={(e) => setEditData({ ...editData, lead_calificado: e.target.value || null })}
+                    className={selectClass}
+                  >
+                    <option value="">---</option>
+                    <option value="calificado">Calificado</option>
+                    <option value="no_calificado">No calificado</option>
+                    <option value="podria">Podria</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--muted)] mb-1 block">Ticket total (USD)</label>
+                  <input
+                    type="number"
+                    value={(editData.ticket_total as number) ?? lead.ticket_total}
+                    onChange={(e) => setEditData({ ...editData, ticket_total: Number(e.target.value) })}
+                    className={inputClass}
+                    min={0}
+                    step={100}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-[var(--muted)] mb-1 block">Notas internas</label>
+                  <textarea
+                    value={(editData.notas_internas as string) || ""}
+                    onChange={(e) => setEditData({ ...editData, notas_internas: e.target.value })}
+                    className={`${inputClass} w-full min-h-[80px] resize-y`}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-[var(--muted)] mb-1 block">Reporte general</label>
+                  <textarea
+                    value={(editData.reporte_general as string) || ""}
+                    onChange={(e) => setEditData({ ...editData, reporte_general: e.target.value })}
+                    className={`${inputClass} w-full min-h-[80px] resize-y`}
+                    rows={3}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleSave(lead.id)}
+                  disabled={saving}
+                  className="text-sm font-medium bg-[var(--purple)] hover:bg-[var(--purple-dark)] text-white px-5 py-2 rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {saving ? "Guardando..." : "Guardar"}
+                </button>
+                {saveMsg && (
+                  <span className={`text-sm ${saveMsg.startsWith("Error") ? "text-red-400" : "text-green-400"}`}>
+                    {saveMsg}
+                  </span>
+                )}
+              </div>
+            </div>
 
             <div className="flex gap-2 pt-2">
               <a
                 href="/form/llamada"
-                className="text-sm font-medium bg-[var(--purple)] hover:bg-[var(--purple-dark)] text-white px-4 py-2 rounded-lg transition-colors"
+                className="text-sm font-medium border border-[var(--card-border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--muted)] px-4 py-2 rounded-lg transition-colors"
               >
                 Cargar resultado
               </a>

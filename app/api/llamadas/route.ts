@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { llamadaSchema } from "@/lib/schemas";
 import { updateLead } from "@/lib/queries/leads";
 import { createPayment } from "@/lib/queries/payments";
-import type { LeadEstado, MetodoPago } from "@/lib/types";
+import type { LeadEstado, LeadCalificacion, Programa, MetodoPago } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
@@ -73,6 +73,42 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, lead: updatedLead });
   } catch (err) {
     console.error("[POST /api/llamadas]", err);
+    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const result = await requireSession();
+    if ("error" in result) return result.error;
+
+    const body = await req.json();
+    const { id, estado, programa_pitcheado, lead_calificado, ticket_total, notas_internas, reporte_general } = body;
+
+    if (!id || typeof id !== "string") {
+      return NextResponse.json({ error: "Se requiere id del lead" }, { status: 400 });
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (estado !== undefined) updates.estado = estado as LeadEstado;
+    if (programa_pitcheado !== undefined) updates.programa_pitcheado = programa_pitcheado as Programa;
+    if (lead_calificado !== undefined) updates.lead_calificado = lead_calificado as LeadCalificacion;
+    if (ticket_total !== undefined) updates.ticket_total = Number(ticket_total);
+    if (notas_internas !== undefined) updates.notas_internas = notas_internas;
+    if (reporte_general !== undefined) updates.reporte_general = reporte_general;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: "No hay campos para actualizar" }, { status: 400 });
+    }
+
+    const updatedLead = await updateLead(id, updates);
+    if (!updatedLead) {
+      return NextResponse.json({ error: "Error al actualizar lead" }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true, lead: updatedLead });
+  } catch (err) {
+    console.error("[PATCH /api/llamadas]", err);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
