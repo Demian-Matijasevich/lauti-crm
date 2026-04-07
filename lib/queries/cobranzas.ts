@@ -377,6 +377,86 @@ export async function fetchFiscalPaidPayments(): Promise<{ total: number; count:
   };
 }
 
+// ========================================
+// AUDIT TYPES & QUERIES
+// ========================================
+
+export interface AuditCuotaRow {
+  id: string;
+  client_nombre: string;
+  numero_cuota: number;
+  monto_usd: number;
+  fecha_pago: string | null;
+  receptor: string | null;
+  cobrador_nombre: string | null;
+  cobrador_id: string | null;
+  metodo_pago: string | null;
+  es_renovacion: boolean;
+}
+
+/** Fetch paid cuotas (numero_cuota > 1) with cobrador name */
+export async function fetchAuditCuotas(): Promise<AuditCuotaRow[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("payments")
+    .select(`
+      id, numero_cuota, monto_usd, fecha_pago, receptor, metodo_pago, cobrador_id, es_renovacion,
+      client:clients(nombre),
+      lead:leads(nombre),
+      cobrador:team_members!payments_cobrador_id_fkey(nombre)
+    `)
+    .gt("numero_cuota", 1)
+    .eq("estado", "pagado")
+    .eq("es_renovacion", false)
+    .order("fecha_pago", { ascending: false });
+
+  if (error) throw new Error(`fetchAuditCuotas: ${error.message}`);
+
+  return (data ?? []).map((p: any) => ({
+    id: p.id,
+    client_nombre: p.client?.nombre ?? p.lead?.nombre ?? "Sin nombre",
+    numero_cuota: p.numero_cuota,
+    monto_usd: p.monto_usd ?? 0,
+    fecha_pago: p.fecha_pago,
+    receptor: p.receptor,
+    cobrador_nombre: p.cobrador?.nombre ?? null,
+    cobrador_id: p.cobrador_id,
+    metodo_pago: p.metodo_pago,
+    es_renovacion: p.es_renovacion,
+  }));
+}
+
+/** Fetch paid renovaciones */
+export async function fetchAuditRenovaciones(): Promise<AuditCuotaRow[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("payments")
+    .select(`
+      id, numero_cuota, monto_usd, fecha_pago, receptor, metodo_pago, cobrador_id, es_renovacion,
+      client:clients(nombre),
+      lead:leads(nombre),
+      cobrador:team_members!payments_cobrador_id_fkey(nombre)
+    `)
+    .eq("es_renovacion", true)
+    .eq("estado", "pagado")
+    .order("fecha_pago", { ascending: false });
+
+  if (error) throw new Error(`fetchAuditRenovaciones: ${error.message}`);
+
+  return (data ?? []).map((p: any) => ({
+    id: p.id,
+    client_nombre: p.client?.nombre ?? p.lead?.nombre ?? "Sin nombre",
+    numero_cuota: p.numero_cuota,
+    monto_usd: p.monto_usd ?? 0,
+    fecha_pago: p.fecha_pago,
+    receptor: p.receptor,
+    cobrador_nombre: p.cobrador?.nombre ?? null,
+    cobrador_id: p.cobrador_id,
+    metodo_pago: p.metodo_pago,
+    es_renovacion: p.es_renovacion,
+  }));
+}
+
 /** Mark a payment as paid */
 export async function markPaymentPaid(
   paymentId: string,

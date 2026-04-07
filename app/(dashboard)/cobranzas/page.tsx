@@ -5,6 +5,8 @@ import {
   fetchFiscalPendingPayments,
   fetchOverduePayments,
   fetchFiscalPaidPayments,
+  fetchAuditCuotas,
+  fetchAuditRenovaciones,
 } from "@/lib/queries/cobranzas";
 import { fetchAgentTasks } from "@/lib/queries/agent-tasks";
 import { getFiscalStart, getFiscalEnd, toDateString } from "@/lib/date-utils";
@@ -19,13 +21,15 @@ export default async function CobranzasPage() {
     redirect("/");
   }
 
-  const [queue, allTasks, fiscalPending, overduePayments, fiscalPaid] =
+  const [queue, allTasks, fiscalPending, overduePayments, fiscalPaid, auditCuotas, auditRenovaciones] =
     await Promise.all([
       fetchCobranzasQueue(),
       fetchAgentTasks(),
       fetchFiscalPendingPayments(),
       fetchOverduePayments(),
       fetchFiscalPaidPayments(),
+      fetchAuditCuotas(),
+      fetchAuditRenovaciones(),
     ]);
 
   // Strip agent data for non-agent-visible users (Task 3)
@@ -76,6 +80,8 @@ export default async function CobranzasPage() {
         fiscalStart={fiscalStart}
         fiscalEnd={fiscalEnd}
         allTasks={sanitizedTasks}
+        auditCuotas={auditCuotas}
+        auditRenovaciones={auditRenovaciones}
         session={session}
       />
     </div>

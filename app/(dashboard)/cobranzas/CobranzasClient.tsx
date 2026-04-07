@@ -2,7 +2,10 @@
 
 import { useState, useMemo } from "react";
 import type { AuthSession, AgentTask } from "@/lib/types";
-import type { CobranzasQueueItem } from "@/lib/queries/cobranzas";
+import type { CobranzasQueueItem, AuditCuotaRow } from "@/lib/queries/cobranzas";
+import MonthSelector77 from "@/app/components/MonthSelector77";
+import { getFiscalMonth, parseLocalDate, getFiscalStart, toDateString } from "@/lib/date-utils";
+import { addMonths, setDate } from "date-fns";
 
 interface Props {
   initialQueue: CobranzasQueueItem[];
@@ -12,8 +15,12 @@ interface Props {
   fiscalStart: string;
   fiscalEnd: string;
   allTasks: AgentTask[];
+  auditCuotas: AuditCuotaRow[];
+  auditRenovaciones: AuditCuotaRow[];
   session: AuthSession;
 }
+
+type MainTab = "cola" | "auditoria";
 
 type FilterTipo = "todos" | "cuotas" | "renovaciones" | "deudores";
 type FilterPeriodo = "hoy" | "semana" | "mes" | "vencidas" | "todas";
@@ -93,8 +100,11 @@ export default function CobranzasClient({
   fiscalStart,
   fiscalEnd,
   allTasks,
+  auditCuotas,
+  auditRenovaciones,
   session,
 }: Props) {
+  const [mainTab, setMainTab] = useState<MainTab>("cola");
   const [queue, setQueue] = useState(initialQueue);
   const [filterTipo, setFilterTipo] = useState<FilterTipo>("todos");
   const [filterPeriodo, setFilterPeriodo] = useState<FilterPeriodo>("todas");
@@ -569,6 +579,35 @@ export default function CobranzasClient({
 
   return (
     <div className="space-y-6">
+      {/* Main Tab Toggle */}
+      <div className="flex gap-1 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-1 w-fit">
+        <button
+          onClick={() => setMainTab("cola")}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            mainTab === "cola"
+              ? "bg-[var(--purple)] text-white"
+              : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+          }`}
+        >
+          Cola de Cobranzas
+        </button>
+        <button
+          onClick={() => setMainTab("auditoria")}
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+            mainTab === "auditoria"
+              ? "bg-[var(--purple)] text-white"
+              : "text-[var(--muted)] hover:text-white hover:bg-white/5"
+          }`}
+        >
+          Auditoria Cuotas
+        </button>
+      </div>
+
+      {mainTab === "auditoria" && (
+        <AuditoriaCuotasTab cuotas={auditCuotas} renovaciones={auditRenovaciones} />
+      )}
+
+      {mainTab === "cola" && <>
       {/* Potencial del mes */}
       <div className="bg-gradient-to-r from-[var(--purple)]/10 to-blue-500/10 border border-[var(--purple)]/30 rounded-xl p-4">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -989,6 +1028,272 @@ export default function CobranzasClient({
           </div>
         </div>
       )}
+      </>}
+    </div>
+  );
+}
+
+// ========================================
+// AuditoriaCuotasTab -- commission audit for Mel
+// ========================================
+function AuditoriaCuotasTab({
+  cuotas,
+  renovaciones,
+}: {
+  cuotas: AuditCuotaRow[];
+  renovaciones: AuditCuotaRow[];
+}) {
+  const currentFiscalStart = toDateString(getFiscalStart());
+  const [selectedPeriod, setSelectedPeriod] = useState(currentFiscalStart);
+  const [cobradorFilter, setCobradorFilter] = useState<"todos" | "mel">("todos");
+
+  // Compute fiscal period end from selected start (8th -> 7th of next month)
+  const periodStart = parseLocalDate(selectedPeriod);
+  const periodEnd = setDate(addMonths(periodStart, 1), 7);
+  const periodStartStr = toDateString(periodStart);
+  const periodEndStr = toDateString(periodEnd);
+
+  // Get fiscal month label for display
+  const periodLabel = getFiscalMonth(addMonths(periodStart, 0));
+
+  // Filter cuotas by fiscal period and cobrador
+  const filteredCuotas = useMemo(() => {
+    return cuotas.filter((c) => {
+      // Period filter on fecha_pago
+      if (c.fecha_pago) {
+        if (c.fecha_pago < periodStartStr || c.fecha_pago > periodEndStr) return false;
+      }
+      // Cobrador filter
+      if (cobradorFilter === "mel") {
+        return c.cobrador_nombre?.toLowerCase().includes("mel") ?? false;
+      }
+      return true;
+    });
+  }, [cuotas, periodStartStr, periodEndStr, cobradorFilter]);
+
+  // Filter renovaciones by fiscal period and cobrador
+  const filteredRenovaciones = useMemo(() => {
+    return renovaciones.filter((r) => {
+      if (r.fecha_pago) {
+        if (r.fecha_pago < periodStartStr || r.fecha_pago > periodEndStr) return false;
+      }
+      if (cobradorFilter === "mel") {
+        return r.cobrador_nombre?.toLowerCase().includes("mel") ?? false;
+      }
+      return true;
+    });
+  }, [renovaciones, periodStartStr, periodEndStr, cobradorFilter]);
+
+  // Summaries
+  const totalCuotas = filteredCuotas.reduce((sum, c) => sum + c.monto_usd, 0);
+  const totalRenovaciones = filteredRenovaciones.reduce((sum, r) => sum + r.monto_usd, 0);
+  const comisionCuotas = totalCuotas * 0.1;
+  const comisionRenovaciones = totalRenovaciones * 0.1;
+  const comisionTotal = comisionCuotas + comisionRenovaciones;
+
+  // Unique cobradores for reference
+  const allCobradores = useMemo(() => {
+    const names = new Set<string>();
+    [...cuotas, ...renovaciones].forEach((c) => {
+      if (c.cobrador_nombre) names.add(c.cobrador_nombre);
+    });
+    return Array.from(names).sort();
+  }, [cuotas, renovaciones]);
+
+  return (
+    <div className="space-y-6">
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-[var(--muted)]">Periodo fiscal:</span>
+          <MonthSelector77 value={selectedPeriod} onChange={setSelectedPeriod} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-[var(--muted)]">Cobrador:</span>
+          <select
+            value={cobradorFilter}
+            onChange={(e) => setCobradorFilter(e.target.value as "todos" | "mel")}
+            className="px-3 py-2 rounded-lg bg-[var(--card-bg)] border border-[var(--card-border)] text-white text-sm focus:border-[var(--purple)] outline-none"
+          >
+            <option value="todos">Todos</option>
+            <option value="mel">Mel</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Grand Total Commission Card */}
+      <div className="bg-gradient-to-r from-[var(--purple)]/10 to-green-500/10 border border-[var(--purple)]/30 rounded-xl p-5">
+        <h2 className="text-lg font-semibold text-white mb-3">
+          Comision {cobradorFilter === "mel" ? "Mel" : "Total"} - {periodLabel}
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-xs text-[var(--muted)] uppercase">Cuotas cobradas</p>
+            <p className="text-xl font-bold text-white">${totalCuotas.toLocaleString()}</p>
+            <p className="text-xs text-[var(--muted)]">{filteredCuotas.length} cuotas</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-xs text-[var(--muted)] uppercase">Renovaciones cobradas</p>
+            <p className="text-xl font-bold text-white">${totalRenovaciones.toLocaleString()}</p>
+            <p className="text-xs text-[var(--muted)]">{filteredRenovaciones.length} renovaciones</p>
+          </div>
+          <div className="bg-white/5 rounded-lg p-3">
+            <p className="text-xs text-[var(--muted)] uppercase">Base comision (10%)</p>
+            <p className="text-xl font-bold text-[var(--purple-light)]">
+              ${(totalCuotas + totalRenovaciones).toLocaleString()}
+            </p>
+          </div>
+          <div className="bg-[var(--green)]/10 border border-[var(--green)]/30 rounded-lg p-3">
+            <p className="text-xs text-[var(--green)] uppercase font-medium">Total comision</p>
+            <p className="text-2xl font-bold text-[var(--green)]">${comisionTotal.toLocaleString()}</p>
+            <p className="text-xs text-[var(--muted)]">
+              Cuotas ${comisionCuotas.toLocaleString()} + Renov ${comisionRenovaciones.toLocaleString()}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Detalle Cuotas Cobradas */}
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--card-border)]">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">
+              Detalle Cuotas Cobradas
+              <span className="ml-2 text-xs bg-white/10 px-2 py-0.5 rounded-full text-[var(--muted)]">
+                {filteredCuotas.length}
+              </span>
+            </h3>
+            <span className="text-sm font-bold text-white">${totalCuotas.toLocaleString()}</span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--card-border)]">
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Cliente</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Cuota #</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Monto USD</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Fecha Pago</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Receptor</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Cobrador</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Metodo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCuotas.map((c) => (
+                <tr key={c.id} className="border-b border-[var(--card-border)] hover:bg-white/5">
+                  <td className="px-4 py-3 font-medium text-white">{c.client_nombre}</td>
+                  <td className="px-4 py-3 text-white">{c.numero_cuota}</td>
+                  <td className="px-4 py-3 font-medium text-white">${c.monto_usd.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-[var(--muted)]">{c.fecha_pago ?? "-"}</td>
+                  <td className="px-4 py-3 text-[var(--muted)]">{c.receptor ?? "-"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      c.cobrador_nombre?.toLowerCase().includes("mel")
+                        ? "bg-[var(--purple)]/20 text-[var(--purple-light)]"
+                        : "bg-white/10 text-[var(--muted)]"
+                    }`}>
+                      {c.cobrador_nombre ?? "-"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-[var(--muted)] text-xs">{c.metodo_pago ?? "-"}</td>
+                </tr>
+              ))}
+              {filteredCuotas.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-[var(--muted)]">
+                    Sin cuotas cobradas en este periodo
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {filteredCuotas.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-[var(--card-border)] bg-white/[0.02]">
+                  <td className="px-4 py-3 font-medium text-[var(--muted)]" colSpan={2}>
+                    Total: {filteredCuotas.length} cuotas
+                  </td>
+                  <td className="px-4 py-3 font-bold text-white">${totalCuotas.toLocaleString()}</td>
+                  <td colSpan={2} className="px-4 py-3" />
+                  <td className="px-4 py-3 font-medium text-[var(--green)]" colSpan={2}>
+                    Comision (10%): ${comisionCuotas.toLocaleString()}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Renovaciones Cobradas */}
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+        <div className="px-4 py-3 border-b border-[var(--card-border)]">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-white">
+              Renovaciones Cobradas
+              <span className="ml-2 text-xs bg-white/10 px-2 py-0.5 rounded-full text-[var(--muted)]">
+                {filteredRenovaciones.length}
+              </span>
+            </h3>
+            <span className="text-sm font-bold text-white">${totalRenovaciones.toLocaleString()}</span>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--card-border)]">
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Cliente</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Monto USD</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Fecha Pago</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Receptor</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Cobrador</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Metodo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRenovaciones.map((r) => (
+                <tr key={r.id} className="border-b border-[var(--card-border)] hover:bg-white/5">
+                  <td className="px-4 py-3 font-medium text-white">{r.client_nombre}</td>
+                  <td className="px-4 py-3 font-medium text-white">${r.monto_usd.toLocaleString()}</td>
+                  <td className="px-4 py-3 text-[var(--muted)]">{r.fecha_pago ?? "-"}</td>
+                  <td className="px-4 py-3 text-[var(--muted)]">{r.receptor ?? "-"}</td>
+                  <td className="px-4 py-3">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      r.cobrador_nombre?.toLowerCase().includes("mel")
+                        ? "bg-[var(--purple)]/20 text-[var(--purple-light)]"
+                        : "bg-white/10 text-[var(--muted)]"
+                    }`}>
+                      {r.cobrador_nombre ?? "-"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-[var(--muted)] text-xs">{r.metodo_pago ?? "-"}</td>
+                </tr>
+              ))}
+              {filteredRenovaciones.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-8 text-center text-[var(--muted)]">
+                    Sin renovaciones cobradas en este periodo
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {filteredRenovaciones.length > 0 && (
+              <tfoot>
+                <tr className="border-t border-[var(--card-border)] bg-white/[0.02]">
+                  <td className="px-4 py-3 font-medium text-[var(--muted)]">
+                    Total: {filteredRenovaciones.length} renovaciones
+                  </td>
+                  <td className="px-4 py-3 font-bold text-white">${totalRenovaciones.toLocaleString()}</td>
+                  <td colSpan={2} className="px-4 py-3" />
+                  <td className="px-4 py-3 font-medium text-[var(--green)]" colSpan={2}>
+                    Comision (10%): ${comisionRenovaciones.toLocaleString()}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
