@@ -1,14 +1,19 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   AreaChart,
   Area,
+  BarChart,
+  Bar,
+  Cell,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  ComposedChart,
 } from "recharts";
 import KPICard from "@/app/components/KPICard";
 import MonthSelector77 from "@/app/components/MonthSelector77";
@@ -37,6 +42,95 @@ interface Props {
   atCashCollected: number;
   atCuotas: number;
   revPrediction: RevPrediction;
+}
+
+function EditableTitle({ defaultLabel, storageKey }: { defaultLabel: string; storageKey: string }) {
+  const [editing, setEditing] = useState(false);
+  const [title, setTitle] = useState(defaultLabel);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(storageKey);
+    if (saved) setTitle(saved);
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) inputRef.current.focus();
+  }, [editing]);
+
+  const save = useCallback(() => {
+    setEditing(false);
+    const trimmed = title.trim();
+    if (trimmed && trimmed !== defaultLabel) {
+      localStorage.setItem(storageKey, trimmed);
+      setTitle(trimmed);
+    } else {
+      localStorage.removeItem(storageKey);
+      setTitle(defaultLabel);
+    }
+  }, [title, defaultLabel, storageKey]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") { setTitle(defaultLabel); setEditing(false); } }}
+        className="text-xs uppercase bg-transparent border-b border-[var(--purple)] text-[var(--muted)] outline-none w-full"
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => setEditing(true)}
+      className="text-xs text-[var(--muted)] uppercase cursor-pointer hover:text-[var(--purple-light)] transition-colors"
+      title="Click para editar"
+    >
+      {title}
+    </span>
+  );
+}
+
+function KPICardEditable({
+  label,
+  storageKey,
+  value,
+  format = "number",
+  delta,
+  icon,
+  valueClassName,
+}: {
+  label: string;
+  storageKey: string;
+  value: number;
+  format?: "usd" | "pct" | "number";
+  delta?: number | null;
+  icon?: string;
+  valueClassName?: string;
+}) {
+  const formatted =
+    format === "usd" ? formatUSD(value) :
+    format === "pct" ? `${value.toFixed(1)}%` :
+    value.toLocaleString();
+
+  return (
+    <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+      <div className="flex items-center justify-between mb-1">
+        <EditableTitle defaultLabel={label} storageKey={storageKey} />
+        {icon && <span className="text-lg">{icon}</span>}
+      </div>
+      <p className={`text-2xl font-bold ${valueClassName ?? "text-white"}`}>{formatted}</p>
+      {delta !== undefined && delta !== null && (
+        <p className={`text-xs mt-1 ${delta >= 0 ? "text-[var(--green)]" : "text-[var(--red)]"}`}>
+          {delta >= 0 ? "\u25B2" : "\u25BC"} {Math.abs(delta).toFixed(1)}% vs mes anterior
+        </p>
+      )}
+    </div>
+  );
 }
 
 export default function HomeAdmin({
@@ -92,7 +186,7 @@ export default function HomeAdmin({
   const ticketPromedio =
     ventasNuevasCount > 0 ? facturacion / ventasNuevasCount : 0;
 
-  // Daily cumulative cash chart
+  // Daily cumulative cash chart + daily bar chart data
   const dailyCashData = useMemo(() => {
     const start = parseLocalDate(selectedMonth);
     const end = getFiscalEnd(start);
@@ -110,8 +204,12 @@ export default function HomeAdmin({
 
     const sortedDays = Object.keys(dailyMap).sort();
     let cumulative = 0;
-    return sortedDays.map((day) => {
-      cumulative += dailyMap[day];
+    let prevDaily = 0;
+    return sortedDays.map((day, idx) => {
+      const daily = dailyMap[day];
+      cumulative += daily;
+      const isUp = idx === 0 || daily >= prevDaily;
+      prevDaily = daily;
       return {
         fecha: day,
         label: parseLocalDate(day).toLocaleDateString("es-AR", {
@@ -119,6 +217,8 @@ export default function HomeAdmin({
           month: "short",
         }),
         cash: cumulative,
+        daily,
+        dailyColor: isUp ? "var(--green)" : "var(--red)",
       };
     });
   }, [payments, selectedMonth]);
@@ -162,45 +262,58 @@ export default function HomeAdmin({
 
       {/* KPI Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <KPICard
+        <KPICardEditable
           label="Facturaci\u00f3n"
+          storageKey="kpi_title_facturacion"
           value={facturacion}
           format="usd"
           delta={delta(facturacion, prev?.facturacion)}
           icon={"\u{1F4C8}"}
         />
-        <KPICard
+        <KPICardEditable
           label="Cash Collected"
+          storageKey="kpi_title_cash_collected"
           value={cashTotal}
           format="usd"
           delta={delta(cashTotal, prev?.cash_total)}
           icon={"\u{1F4B0}"}
         />
-        <KPICard
+        <KPICardEditable
+          label="Cuotas Cobradas"
+          storageKey="kpi_title_cuotas_cobradas"
+          value={cashCuotas}
+          format="usd"
+          icon={"\u{1F4CB}"}
+        />
+        <KPICardEditable
           label="Renovaciones"
+          storageKey="kpi_title_renovaciones"
           value={cashRenovaciones}
           format="usd"
           delta={delta(cashRenovaciones, prev?.cash_renovaciones)}
           icon={"\u{1F504}"}
         />
         {refunds > 0 && (
-          <KPICard
+          <KPICardEditable
             label="Refunds"
+            storageKey="kpi_title_refunds"
             value={-refunds}
             format="usd"
             icon={"\u{1F6A8}"}
             valueClassName="text-[var(--red)]"
           />
         )}
-        <KPICard
+        <KPICardEditable
           label="Ventas Nuevas"
+          storageKey="kpi_title_ventas_nuevas"
           value={ventasNuevasCount}
           format="number"
           delta={delta(ventasNuevasCount, prev?.ventas_nuevas_count)}
           icon={"\u{1F680}"}
         />
-        <KPICard
+        <KPICardEditable
           label="Ticket Promedio"
+          storageKey="kpi_title_ticket_promedio"
           value={ticketPromedio}
           format="usd"
           icon={"\u{1F3AF}"}
@@ -218,65 +331,74 @@ export default function HomeAdmin({
         const pctRenewals = maxProjected > 0 ? (renewalExpected / maxProjected) * 100 : 0;
         const pctPipeline = maxProjected > 0 ? ((revPrediction.pipelineTotal * 0.3) / maxProjected) * 100 : 0;
 
+        const pctOfMax = maxProjected > 0 ? Math.round((revPrediction.cashCollected / maxProjected) * 100) : 0;
+
         return (
-          <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
-            <h2 className="text-lg font-semibold text-white mb-1">Proyeccion del Mes</h2>
-            <p className="text-sm text-[var(--muted)] mb-4">
-              Cobrado: {formatUSD(revPrediction.cashCollected)} / Proyectado: {formatUSD(Math.round(maxProjected))}
-            </p>
+          <div className="relative bg-[var(--card-bg)] border-2 border-[var(--purple)]/40 rounded-xl p-6 overflow-hidden">
+            {/* Gradient background accent */}
+            <div className="absolute inset-0 bg-gradient-to-br from-[var(--purple)]/10 via-transparent to-[var(--green)]/5 pointer-events-none" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="text-xl font-bold text-white">Proyeccion del Mes</h2>
+                <span className="text-2xl font-bold text-[var(--purple-light)]">{pctOfMax}% del objetivo</span>
+              </div>
+              <p className="text-sm text-[var(--muted)] mb-5">
+                Cobrado: <span className="text-[var(--green)] font-semibold">{formatUSD(revPrediction.cashCollected)}</span> / Proyectado: <span className="text-white font-semibold">{formatUSD(Math.round(maxProjected))}</span>
+              </p>
 
-            {/* Progress bar */}
-            <div className="w-full h-6 rounded-full bg-white/10 overflow-hidden flex mb-4">
-              <div
-                className="h-full bg-[var(--green)]"
-                style={{ width: `${Math.min(pctCollected, 100)}%` }}
-                title={`Cobrado: ${formatUSD(revPrediction.cashCollected)}`}
-              />
-              <div
-                className="h-full bg-[var(--yellow)]"
-                style={{ width: `${Math.min(pctCuotas, 100 - pctCollected)}%` }}
-                title={`Cuotas esperadas: ${formatUSD(revPrediction.cuotasPendientes)}`}
-              />
-              <div
-                className="h-full bg-emerald-500"
-                style={{ width: `${Math.min(pctRenewals, 100 - pctCollected - pctCuotas)}%` }}
-                title={`Renovaciones: ${formatUSD(Math.round(renewalExpected))}`}
-              />
-              <div
-                className="h-full bg-blue-500/50"
-                style={{ width: `${Math.min(pctPipeline, 100 - pctCollected - pctCuotas - pctRenewals)}%` }}
-                title={`Pipeline: ${formatUSD(Math.round(revPrediction.pipelineTotal * 0.3))}`}
-              />
-            </div>
+              {/* Progress bar — bigger */}
+              <div className="w-full h-10 rounded-full bg-white/10 overflow-hidden flex mb-5 shadow-inner">
+                <div
+                  className="h-full bg-[var(--green)] transition-all duration-500"
+                  style={{ width: `${Math.min(pctCollected, 100)}%` }}
+                  title={`Cobrado: ${formatUSD(revPrediction.cashCollected)}`}
+                />
+                <div
+                  className="h-full bg-[var(--yellow)]/70 border-l-2 border-dashed border-[var(--yellow)]"
+                  style={{ width: `${Math.min(pctCuotas, 100 - pctCollected)}%` }}
+                  title={`Cuotas esperadas: ${formatUSD(revPrediction.cuotasPendientes)}`}
+                />
+                <div
+                  className="h-full bg-emerald-500/60 border-l-2 border-dashed border-emerald-400"
+                  style={{ width: `${Math.min(pctRenewals, 100 - pctCollected - pctCuotas)}%` }}
+                  title={`Renovaciones: ${formatUSD(Math.round(renewalExpected))}`}
+                />
+                <div
+                  className="h-full bg-blue-500/30 border-l-2 border-dashed border-blue-400"
+                  style={{ width: `${Math.min(pctPipeline, 100 - pctCollected - pctCuotas - pctRenewals)}%` }}
+                  title={`Pipeline: ${formatUSD(Math.round(revPrediction.pipelineTotal * 0.3))}`}
+                />
+              </div>
 
-            {/* Breakdown */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-[var(--green)]" />
-                <div>
-                  <p className="text-white font-medium">{formatUSD(revPrediction.cashCollected)}</p>
-                  <p className="text-[var(--muted)] text-xs">Cerrado</p>
+              {/* Breakdown */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="flex items-center gap-2 bg-[var(--green)]/10 rounded-lg px-3 py-2">
+                  <span className="w-3 h-3 rounded-sm bg-[var(--green)]" />
+                  <div>
+                    <p className="text-white font-semibold">{formatUSD(revPrediction.cashCollected)}</p>
+                    <p className="text-[var(--muted)] text-xs">Cobrado</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-[var(--yellow)]" />
-                <div>
-                  <p className="text-white font-medium">{formatUSD(revPrediction.cuotasPendientes)}</p>
-                  <p className="text-[var(--muted)] text-xs">Cuotas esperadas</p>
+                <div className="flex items-center gap-2 bg-[var(--yellow)]/10 rounded-lg px-3 py-2">
+                  <span className="w-3 h-3 rounded-sm bg-[var(--yellow)] border border-dashed border-[var(--yellow)]" />
+                  <div>
+                    <p className="text-white font-semibold">{formatUSD(revPrediction.cuotasPendientes)}</p>
+                    <p className="text-[var(--muted)] text-xs">Cuotas esperadas</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-emerald-500" />
-                <div>
-                  <p className="text-white font-medium">{formatUSD(Math.round(renewalExpected))}</p>
-                  <p className="text-[var(--muted)] text-xs">Renovaciones ({revPrediction.renewalCount})</p>
+                <div className="flex items-center gap-2 bg-emerald-500/10 rounded-lg px-3 py-2">
+                  <span className="w-3 h-3 rounded-sm bg-emerald-500" />
+                  <div>
+                    <p className="text-white font-semibold">{formatUSD(Math.round(renewalExpected))}</p>
+                    <p className="text-[var(--muted)] text-xs">Renovaciones ({revPrediction.renewalCount})</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="w-3 h-3 rounded-sm bg-blue-500/50" />
-                <div>
-                  <p className="text-white font-medium">{formatUSD(revPrediction.pipelineTotal)}</p>
-                  <p className="text-[var(--muted)] text-xs">Pipeline ({revPrediction.pipelineCount} leads)</p>
+                <div className="flex items-center gap-2 bg-blue-500/10 rounded-lg px-3 py-2">
+                  <span className="w-3 h-3 rounded-sm bg-blue-500/50" />
+                  <div>
+                    <p className="text-white font-semibold">{formatUSD(revPrediction.pipelineTotal)}</p>
+                    <p className="text-[var(--muted)] text-xs">Pipeline ({revPrediction.pipelineCount} leads)</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -284,7 +406,7 @@ export default function HomeAdmin({
         );
       })()}
 
-      {/* Cash Acumulado Chart */}
+      {/* Cash Acumulado Chart with Projection Line */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
         <h2 className="text-lg font-semibold text-white mb-4">
           Cash Collected Diario Acumulado
@@ -295,7 +417,26 @@ export default function HomeAdmin({
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
-            <AreaChart data={dailyCashData}>
+            <ComposedChart data={(() => {
+              // Add projection point at the end
+              const RENEWAL_RATE = 0.4;
+              const renewalExpected = revPrediction.renewalCount * revPrediction.renewalAvgValue * RENEWAL_RATE;
+              const projectedTotal = revPrediction.cashCollected + revPrediction.cuotasPendientes + renewalExpected + revPrediction.pipelineTotal * 0.3;
+              const dataWithProjection = dailyCashData.map((d, i) => ({
+                ...d,
+                projection: i === dailyCashData.length - 1 ? d.cash : undefined,
+              }));
+              // Add projected endpoint
+              dataWithProjection.push({
+                fecha: "proj",
+                label: "Proyectado",
+                cash: 0,
+                daily: 0,
+                dailyColor: "var(--green)",
+                projection: Math.round(projectedTotal),
+              } as typeof dataWithProjection[0]);
+              return dataWithProjection;
+            })()}>
               <defs>
                 <linearGradient id="cashGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--green)" stopOpacity={0.3} />
@@ -322,7 +463,10 @@ export default function HomeAdmin({
                   borderRadius: "8px",
                   color: "white",
                 }}
-                formatter={(value) => [formatUSD(Number(value)), "Cash acumulado"]}
+                formatter={(value, name) => {
+                  if (name === "projection") return [formatUSD(Number(value)), "Proyectado"];
+                  return [formatUSD(Number(value)), "Cash acumulado"];
+                }}
                 labelFormatter={(label) => String(label)}
               />
               <Area
@@ -331,11 +475,66 @@ export default function HomeAdmin({
                 stroke="var(--green)"
                 strokeWidth={2}
                 fill="url(#cashGradient)"
+                connectNulls={false}
               />
-            </AreaChart>
+              <Line
+                type="monotone"
+                dataKey="projection"
+                stroke="#a78bfa"
+                strokeWidth={2}
+                strokeDasharray="8 4"
+                dot={{ r: 5, fill: "#a78bfa" }}
+                connectNulls
+              />
+            </ComposedChart>
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* Daily Cash Bar Chart (green/red) */}
+      {dailyCashData.length > 0 && (
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            Cash Diario
+          </h2>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={dailyCashData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--card-border)" />
+              <XAxis
+                dataKey="label"
+                stroke="var(--muted)"
+                fontSize={11}
+                tickLine={false}
+              />
+              <YAxis
+                stroke="var(--muted)"
+                fontSize={11}
+                tickLine={false}
+                tickFormatter={(v: number) => formatUSD(v)}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "var(--card-bg)",
+                  border: "1px solid var(--card-border)",
+                  borderRadius: "8px",
+                  color: "white",
+                }}
+                formatter={(value) => [formatUSD(Number(value)), "Cash del dia"]}
+                labelFormatter={(label) => String(label)}
+              />
+              <Bar dataKey="daily" radius={[4, 4, 0, 0]}>
+                {dailyCashData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.dailyColor} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+          <div className="flex items-center gap-4 mt-2 text-xs text-[var(--muted)]">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[var(--green)]" /> Mayor o igual que el dia anterior</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-[var(--red)]" /> Menor que el dia anterior</span>
+          </div>
+        </div>
+      )}
 
       {/* Comisiones del Equipo */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">

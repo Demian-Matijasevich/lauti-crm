@@ -42,6 +42,7 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
   const [setterFilter, setSetterFilter] = useState<string>("todos");
   const [monthFilter, setMonthFilter] = useState<string>("todos");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showEstadoCuenta, setShowEstadoCuenta] = useState<string | null>(null);
 
   // Inline edit state
   const [editData, setEditData] = useState<Record<string, unknown>>({});
@@ -622,14 +623,16 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
             </div>
 
             <div className="flex flex-wrap gap-2 pt-2">
-              <a
-                href={`/llamadas/${lead.id}/estado-cuenta`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium bg-[var(--purple)]/15 border border-[var(--purple)]/30 text-[var(--purple-light)] hover:bg-[var(--purple)]/25 px-4 py-2 rounded-lg transition-colors"
+              <button
+                onClick={() => setShowEstadoCuenta(showEstadoCuenta === lead.id ? null : lead.id)}
+                className={`text-sm font-medium px-4 py-2 rounded-lg transition-colors ${
+                  showEstadoCuenta === lead.id
+                    ? "bg-[var(--purple)] text-white"
+                    : "bg-[var(--purple)]/15 border border-[var(--purple)]/30 text-[var(--purple-light)] hover:bg-[var(--purple)]/25"
+                }`}
               >
-                Estado de Cuenta
-              </a>
+                {showEstadoCuenta === lead.id ? "Cerrar Estado de Cuenta" : "Estado de Cuenta"}
+              </button>
               <a
                 href="/form/llamada"
                 className="text-sm font-medium border border-[var(--card-border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--muted)] px-4 py-2 rounded-lg transition-colors"
@@ -643,6 +646,143 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
                 Ver en pipeline
               </a>
             </div>
+
+            {/* Inline Estado de Cuenta */}
+            {showEstadoCuenta === lead.id && (() => {
+              const leadPayments = paymentsByLead.get(lead.id) || [];
+              const pagados = leadPayments.filter((p) => p.estado === "pagado");
+              const pendientes = leadPayments.filter((p) => p.estado === "pendiente");
+              const perdidos = leadPayments.filter((p) => p.estado === "perdido");
+              const totalPagado = pagados.reduce((sum, p) => sum + p.monto_usd, 0);
+              const totalPendiente = pendientes.reduce((sum, p) => sum + p.monto_usd, 0);
+              const totalPerdido = perdidos.reduce((sum, p) => sum + p.monto_usd, 0);
+              const saldo = lead.ticket_total - totalPagado;
+
+              return (
+                <div id={`estado-cuenta-${lead.id}`} className="mt-4 pt-4 border-t border-[var(--card-border)] space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-semibold text-[var(--purple-light)]">Estado de Cuenta</h4>
+                    <button
+                      onClick={() => {
+                        const el = document.getElementById(`estado-cuenta-${lead.id}`);
+                        if (!el) return;
+                        const printWindow = window.open("", "_blank");
+                        if (!printWindow) return;
+                        printWindow.document.write(`
+                          <html><head><title>Estado de Cuenta - ${lead.nombre}</title>
+                          <style>
+                            body { font-family: system-ui, sans-serif; padding: 2rem; color: #000; }
+                            table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+                            th, td { padding: 8px 12px; border: 1px solid #ddd; text-align: left; font-size: 13px; }
+                            th { background: #f3f4f6; font-weight: 600; }
+                            .green { color: #15803d; } .yellow { color: #a16207; } .red { color: #b91c1c; }
+                            .summary { border-top: 2px solid #000; padding-top: 1rem; margin-top: 1rem; }
+                            .summary div { display: flex; justify-content: space-between; padding: 4px 0; }
+                          </style></head><body>
+                          <h1>Estado de Cuenta — ${lead.nombre}</h1>
+                          <p>Ticket total: $${lead.ticket_total.toLocaleString()}</p>
+                          ${el.querySelector("table")?.outerHTML || ""}
+                          <div class="summary">
+                            <div><span>Total Pagado</span><span class="green">$${totalPagado.toLocaleString()}</span></div>
+                            <div><span>Cuotas Pendientes</span><span class="yellow">$${totalPendiente.toLocaleString()}</span></div>
+                            ${totalPerdido > 0 ? `<div><span>Perdido / Refund</span><span class="red">$${totalPerdido.toLocaleString()}</span></div>` : ""}
+                            <div style="border-top:1px solid #ddd;padding-top:8px;margin-top:8px"><span><b>Saldo Pendiente</b></span><span class="${saldo > 0 ? "red" : "green"}"><b>$${saldo.toLocaleString()}</b></span></div>
+                          </div>
+                          </body></html>
+                        `);
+                        printWindow.document.close();
+                        printWindow.print();
+                      }}
+                      className="text-xs font-medium border border-[var(--card-border)] text-[var(--muted)] hover:text-[var(--foreground)] px-3 py-1 rounded-lg transition-colors"
+                    >
+                      Imprimir
+                    </button>
+                  </div>
+
+                  {/* Payment history table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-[var(--card-border)] text-left">
+                          <th className="px-3 py-2 text-[var(--muted)] font-medium">#</th>
+                          <th className="px-3 py-2 text-[var(--muted)] font-medium">Monto USD</th>
+                          <th className="px-3 py-2 text-[var(--muted)] font-medium">Estado</th>
+                          <th className="px-3 py-2 text-[var(--muted)] font-medium">Fecha Pago</th>
+                          <th className="px-3 py-2 text-[var(--muted)] font-medium">Vencimiento</th>
+                          <th className="px-3 py-2 text-[var(--muted)] font-medium">Receptor</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leadPayments.length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="text-center py-4 text-[var(--muted)]">
+                              Sin pagos registrados
+                            </td>
+                          </tr>
+                        ) : (
+                          leadPayments
+                            .sort((a, b) => a.numero_cuota - b.numero_cuota)
+                            .map((p) => (
+                              <tr key={p.id} className="border-b border-[var(--card-border)]/50">
+                                <td className="px-3 py-2">#{p.numero_cuota}</td>
+                                <td className="px-3 py-2 font-mono font-medium">{formatUSD(p.monto_usd)}</td>
+                                <td className={`px-3 py-2 font-medium ${
+                                  p.estado === "pagado" ? "text-green-400" :
+                                  p.estado === "pendiente" ? "text-yellow-400" :
+                                  p.estado === "perdido" ? "text-red-400" : ""
+                                }`}>
+                                  {p.estado.charAt(0).toUpperCase() + p.estado.slice(1)}
+                                </td>
+                                <td className="px-3 py-2 text-[var(--muted)]">{formatDate(p.fecha_pago)}</td>
+                                <td className="px-3 py-2 text-[var(--muted)]">{formatDate(p.fecha_vencimiento)}</td>
+                                <td className="px-3 py-2 text-[var(--muted)]">{p.receptor ?? "---"}</td>
+                              </tr>
+                            ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Totals */}
+                  <div className="space-y-2 text-sm pt-2 border-t border-[var(--card-border)]">
+                    <div className="flex justify-between">
+                      <span className="text-[var(--muted)]">Total Pagado</span>
+                      <span className="font-bold text-green-400">{formatUSD(totalPagado)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[var(--muted)]">Cuotas Pendientes</span>
+                      <span className="font-bold text-yellow-400">{formatUSD(totalPendiente)}</span>
+                    </div>
+                    {totalPerdido > 0 && (
+                      <div className="flex justify-between">
+                        <span className="text-[var(--muted)]">Perdido / Refund</span>
+                        <span className="font-bold text-red-400">{formatUSD(totalPerdido)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-[var(--card-border)] pt-2 mt-2">
+                      <span className="font-semibold">Saldo Pendiente (Ticket - Pagado)</span>
+                      <span className={`font-bold ${saldo > 0 ? "text-red-400" : "text-green-400"}`}>
+                        {formatUSD(saldo)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Contexto setter & Reporte */}
+                  {lead.contexto_setter && (
+                    <div className="pt-3 border-t border-[var(--card-border)]">
+                      <p className="text-xs text-[var(--muted)] mb-1">Contexto setter</p>
+                      <p className="text-sm leading-relaxed">{lead.contexto_setter}</p>
+                    </div>
+                  )}
+                  {lead.reporte_general && (
+                    <div className="pt-3 border-t border-[var(--card-border)]">
+                      <p className="text-xs text-[var(--muted)] mb-1">Reporte general</p>
+                      <p className="text-sm leading-relaxed">{lead.reporte_general}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         );
       })()}
