@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { fetchTeamMembers, fetchPaymentMethods } from "@/lib/queries/admin";
 import AdminClient from "./AdminClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminPage() {
   const auth = await requireAdmin();
   if ("error" in auth) redirect("/login");

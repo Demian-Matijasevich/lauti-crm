@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import { fetchDailyReports, fetchReportsByMember, fetchSetters } from "@/lib/queries/daily-reports";
 import ReportesClient from "./ReportesClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function ReportesPage() {
   const auth = await requireAdmin();
   if ("error" in auth) redirect("/login");

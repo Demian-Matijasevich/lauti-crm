@@ -5,18 +5,22 @@ import { RealtimeProvider } from "@/app/components/RealtimeProvider";
 import SaleBanner from "@/app/components/SaleBanner";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const session = await getSession();
-  if (!session) redirect("/login");
+  try {
+    const session = await getSession();
+    if (!session) redirect("/login");
 
-  return (
-    <div className="min-h-screen">
-      <Sidebar session={session} />
-      <RealtimeProvider>
-        <SaleBanner />
-        <main className="lg:ml-64 pt-14 lg:pt-0 p-4 lg:p-6">
-          {children}
-        </main>
-      </RealtimeProvider>
-    </div>
-  );
+    return (
+      <div className="min-h-screen">
+        <Sidebar session={session} />
+        <RealtimeProvider>
+          <SaleBanner />
+          <main className="lg:ml-64 pt-14 lg:pt-0 p-4 lg:p-6">
+            {children}
+          </main>
+        </RealtimeProvider>
+      </div>
+    );
+  } catch {
+    redirect("/login");
+  }
 }

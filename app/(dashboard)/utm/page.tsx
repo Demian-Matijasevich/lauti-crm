@@ -4,6 +4,8 @@ import { fetchUtmCampaigns } from "@/lib/queries/utm";
 import { fetchSetters } from "@/lib/queries/daily-reports";
 import UtmClient from "./UtmClient";
 
+export const dynamic = "force-dynamic";
+
 export default async function UtmPage() {
   const auth = await requireAdmin();
   if ("error" in auth) redirect("/login");
