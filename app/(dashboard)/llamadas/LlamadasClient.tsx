@@ -110,13 +110,15 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
     let totalTicket = 0;
     let totalCash = 0;
     let totalSaldo = 0;
+    let totalAtCash = 0;
     for (const lead of filtered) {
       const audit = getAuditData(lead.id, lead.ticket_total);
       totalTicket += lead.ticket_total;
       totalCash += audit.cashCollected;
       totalSaldo += audit.saldoPendiente;
+      totalAtCash += (lead.at_cash_total || 0);
     }
-    return { totalTicket, totalCash, totalSaldo };
+    return { totalTicket, totalCash, totalSaldo, totalAtCash };
   }, [filtered, getAuditData]);
 
   // CSV export
@@ -290,13 +292,15 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
                 <th className="px-4 py-3 text-[var(--muted)] font-medium text-center">Cuotas Pagadas</th>
                 <th className="px-4 py-3 text-[var(--muted)] font-medium text-right">Saldo Pendiente</th>
                 <th className="px-4 py-3 text-[var(--muted)] font-medium">Receptor</th>
+                <th className="px-4 py-3 text-[var(--muted)] font-medium text-right">AT Cash 7-7</th>
+                <th className="px-4 py-3 text-[var(--muted)] font-medium text-right">Diferencia</th>
                 <th className="px-4 py-3 text-[var(--muted)] font-medium">Airtable ID</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={13} className="px-4 py-12 text-center text-[var(--muted)]">
+                  <td colSpan={15} className="px-4 py-12 text-center text-[var(--muted)]">
                     No se encontraron leads con esos filtros.
                   </td>
                 </tr>
@@ -358,6 +362,23 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
                     <td className="px-4 py-3 text-[var(--muted)] text-xs">
                       {audit.receptor || "---"}
                     </td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {(lead.at_cash_total || 0) > 0 ? (
+                        <span className="text-blue-400">{formatUSD(lead.at_cash_total || 0)}</span>
+                      ) : (
+                        "---"
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {(() => {
+                        const atTotal = lead.at_cash_total || 0;
+                        if (atTotal === 0 && audit.cashCollected === 0) return "---";
+                        const diff = audit.cashCollected - atTotal;
+                        if (diff === 0) return <span className="text-green-400">OK</span>;
+                        if (diff > 0) return <span className="text-yellow-400">+{formatUSD(diff)}</span>;
+                        return <span className="text-red-400">-{formatUSD(Math.abs(diff))}</span>;
+                      })()}
+                    </td>
                     <td className="px-4 py-3 text-xs">
                       {lead.airtable_id ? (
                         <a
@@ -395,7 +416,19 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
                   <td className="px-4 py-3 text-right font-mono text-red-400">
                     {formatUSD(totals.totalSaldo)}
                   </td>
-                  <td className="px-4 py-3" colSpan={2}></td>
+                  <td className="px-4 py-3"></td>
+                  <td className="px-4 py-3 text-right font-mono text-blue-400">
+                    {formatUSD(totals.totalAtCash)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-mono">
+                    {(() => {
+                      const diff = totals.totalCash - totals.totalAtCash;
+                      if (diff === 0) return <span className="text-green-400">OK</span>;
+                      if (diff > 0) return <span className="text-yellow-400">+{formatUSD(diff)}</span>;
+                      return <span className="text-red-400">-{formatUSD(Math.abs(diff))}</span>;
+                    })()}
+                  </td>
+                  <td className="px-4 py-3"></td>
                 </tr>
               </tfoot>
             )}

@@ -113,6 +113,9 @@ export interface Lead {
   ticket_total: number;
   fue_seguimiento: boolean;
   de_donde_viene_lead: string | null;
+  at_cash_7_7?: number;
+  at_cash_cuotas_7_7?: number;
+  at_cash_total?: number;
   created_at: string;
   updated_at: string;
   // Joined fields
