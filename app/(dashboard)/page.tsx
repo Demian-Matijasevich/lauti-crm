@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     const fiscalEnd = getFiscalEnd();
     const today = new Date().toISOString().split("T")[0];
 
-    const [cashRes, paymentsRes, overdueRes, atRiskRes, commissionsRes] = await Promise.all([
+    const [cashRes, paymentsRes, overdueRes, atRiskRes, commissionsRes, leadsAtRes] = await Promise.all([
       supabase.from("v_monthly_cash").select("*"),
       supabase
         .from("payments")
@@ -40,7 +40,13 @@ export default async function DashboardPage() {
         .eq("estado", "activo")
         .lt("health_score", 50),
       supabase.from("v_commissions").select("*"),
+      supabase.from("leads").select("at_cash_7_7,at_cash_cuotas_7_7,ticket_total").gt("at_cash_7_7", 0),
     ]);
+
+    // Calculate Airtable totals for current period
+    const leadsAt = (leadsAtRes.data ?? []) as { at_cash_7_7: number; at_cash_cuotas_7_7: number; ticket_total: number }[];
+    const atCashTotal = leadsAt.reduce((s, l) => s + (l.at_cash_7_7 || 0), 0);
+    const atCuotasTotal = leadsAt.reduce((s, l) => s + (l.at_cash_cuotas_7_7 || 0), 0);
 
     return (
       <HomeAdmin
@@ -49,6 +55,8 @@ export default async function DashboardPage() {
         overduePayments={(overdueRes.data as Payment[]) ?? []}
         atRiskClients={(atRiskRes.data as Client[]) ?? []}
         commissions={(commissionsRes.data as Commission[]) ?? []}
+        atCashCollected={atCashTotal}
+        atCuotas={atCuotasTotal}
       />
     );
   }

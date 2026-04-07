@@ -24,6 +24,8 @@ interface Props {
   overduePayments: Payment[];
   atRiskClients: Client[];
   commissions: Commission[];
+  atCashCollected: number;
+  atCuotas: number;
 }
 
 export default function HomeAdmin({
@@ -32,6 +34,8 @@ export default function HomeAdmin({
   overduePayments,
   atRiskClients,
   commissions,
+  atCashCollected,
+  atCuotas,
 }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(
     getFiscalStart().toISOString().split("T")[0]
@@ -63,10 +67,11 @@ export default function HomeAdmin({
   }
 
   const facturacion = current?.facturacion ?? 0;
-  const cashTotal = current?.cash_total ?? 0;
+  // Use Airtable's at_cash_7_7 as source of truth for Cash Collected
+  const cashTotal = atCashCollected;
   const cashVentasNuevas = current?.cash_ventas_nuevas ?? 0;
   const cashRenovaciones = current?.cash_renovaciones ?? 0;
-  const cashCuotas = current?.cash_cuotas ?? 0;
+  const cashCuotas = atCuotas;
   const ventasNuevasCount = current?.ventas_nuevas_count ?? 0;
   const renovacionesCount = current?.renovaciones_count ?? 0;
   const saldoPendiente = current?.saldo_pendiente_30d ?? 0;
