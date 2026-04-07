@@ -7,11 +7,21 @@ import { getFiscalStart, getFiscalEnd, parseLocalDate } from "@/lib/date-utils";
 import { COMMISSION_SETTER } from "@/lib/constants";
 import type { Lead, DailyReport } from "@/lib/types";
 
+export interface ObjectiveData {
+  id: string;
+  team_member_id: string;
+  mes_fiscal: string;
+  objetivo_cash: number;
+  objetivo_cierres: number;
+  objetivo_agendas: number;
+}
+
 interface Props {
   reports: DailyReport[];
   leads: Lead[];
   currentMemberId: string;
   currentName: string;
+  objective?: ObjectiveData | null;
 }
 
 export default function HomeSetter({
@@ -19,6 +29,7 @@ export default function HomeSetter({
   leads,
   currentMemberId,
   currentName,
+  objective,
 }: Props) {
   const fiscalStart = getFiscalStart();
   const fiscalEnd = getFiscalEnd();
@@ -110,6 +121,49 @@ export default function HomeSetter({
           icon={"\u{1F5E3}\u{FE0F}"}
         />
       </div>
+
+      {/* Tu objetivo del mes */}
+      {objective && objective.objetivo_agendas > 0 && (
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-3">Tu Objetivo del Mes</h2>
+          <div className="space-y-3">
+            <div>
+              <div className="flex items-center justify-between text-sm mb-1">
+                <span className="text-[var(--muted)]">Agendas</span>
+                <span className="text-white font-medium">
+                  {agendasMes} / {objective.objetivo_agendas} ({objective.objetivo_agendas > 0 ? ((agendasMes / objective.objetivo_agendas) * 100).toFixed(0) : 0}%)
+                </span>
+              </div>
+              <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all duration-500 ${
+                    agendasMes >= objective.objetivo_agendas ? "bg-[var(--green)]" : agendasMes >= objective.objetivo_agendas * 0.7 ? "bg-[var(--yellow)]" : "bg-[var(--purple)]"
+                  }`}
+                  style={{ width: `${Math.min((agendasMes / objective.objetivo_agendas) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+            {objective.objetivo_cash > 0 && (
+              <div>
+                <div className="flex items-center justify-between text-sm mb-1">
+                  <span className="text-[var(--muted)]">Cash (comisiones)</span>
+                  <span className="text-white font-medium">
+                    {formatUSD(comisiones)} / {formatUSD(objective.objetivo_cash)} ({objective.objetivo_cash > 0 ? ((comisiones / objective.objetivo_cash) * 100).toFixed(0) : 0}%)
+                  </span>
+                </div>
+                <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all duration-500 ${
+                      comisiones >= objective.objetivo_cash ? "bg-[var(--green)]" : "bg-[var(--purple)]"
+                    }`}
+                    style={{ width: `${Math.min((comisiones / objective.objetivo_cash) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Quick Access */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

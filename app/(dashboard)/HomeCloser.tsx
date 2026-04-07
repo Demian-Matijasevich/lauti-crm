@@ -7,11 +7,21 @@ import { formatUSD, formatDate } from "@/lib/format";
 import { getCloserStreaks, getCloserBadges } from "@/lib/gamification";
 import type { Lead, CloserKPI } from "@/lib/types";
 
+export interface ObjectiveData {
+  id: string;
+  team_member_id: string;
+  mes_fiscal: string;
+  objetivo_cash: number;
+  objetivo_cierres: number;
+  objetivo_agendas: number;
+}
+
 interface Props {
   leads: Lead[];
   closerKpis: CloserKPI[];
   currentMemberId: string;
   currentName: string;
+  objective?: ObjectiveData | null;
 }
 
 export default function HomeCloser({
@@ -19,6 +29,7 @@ export default function HomeCloser({
   closerKpis,
   currentMemberId,
   currentName,
+  objective,
 }: Props) {
   const today = new Date().toISOString().split("T")[0];
 
@@ -148,6 +159,56 @@ export default function HomeCloser({
           icon={"\u{1F680}"}
         />
       </div>
+
+      {/* Tu objetivo del mes */}
+      {objective && objective.objetivo_cash > 0 && (
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-3">Tu Objetivo del Mes</h2>
+          {(() => {
+            const myCash = (myKpis?.cerradas ?? 0) * (myKpis?.aov ?? 0);
+            const pct = objective.objetivo_cash > 0 ? (myCash / objective.objetivo_cash) * 100 : 0;
+            const clampedPct = Math.min(pct, 100);
+            return (
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-[var(--muted)]">Cash</span>
+                    <span className="text-white font-medium">
+                      {formatUSD(myCash)} / {formatUSD(objective.objetivo_cash)} ({pct.toFixed(0)}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        pct >= 100 ? "bg-[var(--green)]" : pct >= 70 ? "bg-[var(--yellow)]" : "bg-[var(--purple)]"
+                      }`}
+                      style={{ width: `${clampedPct}%` }}
+                    />
+                  </div>
+                </div>
+                {objective.objetivo_cierres > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-sm mb-1">
+                      <span className="text-[var(--muted)]">Cierres</span>
+                      <span className="text-white font-medium">
+                        {myKpis?.cerradas ?? 0} / {objective.objetivo_cierres}
+                      </span>
+                    </div>
+                    <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          (myKpis?.cerradas ?? 0) >= objective.objetivo_cierres ? "bg-[var(--green)]" : "bg-[var(--purple)]"
+                        }`}
+                        style={{ width: `${Math.min(((myKpis?.cerradas ?? 0) / objective.objetivo_cierres) * 100, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+        </div>
+      )}
 
       {/* Today's Agenda */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">

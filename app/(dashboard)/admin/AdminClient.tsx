@@ -4,14 +4,26 @@ import { useState } from "react";
 import type { TeamMember } from "@/lib/types";
 import type { PaymentMethod } from "@/lib/queries/admin";
 import { PROGRAMS, COMMISSION_CLOSER, COMMISSION_SETTER, COMMISSION_COBRANZAS } from "@/lib/constants";
-import { formatPct } from "@/lib/format";
+import { formatPct, formatUSD } from "@/lib/format";
+import { getFiscalMonthOptions, getFiscalMonth } from "@/lib/date-utils";
+
+export interface Objective {
+  id: string;
+  team_member_id: string;
+  mes_fiscal: string;
+  objetivo_cash: number;
+  objetivo_cierres: number;
+  objetivo_agendas: number;
+  team_member?: { id: string; nombre: string };
+}
 
 interface Props {
   team: TeamMember[];
   paymentMethods: PaymentMethod[];
+  objectives?: Objective[];
 }
 
-type Tab = "equipo" | "metodos_pago" | "programas" | "comisiones";
+type Tab = "equipo" | "metodos_pago" | "programas" | "comisiones" | "objetivos";
 
 // ------- Team Member Edit Modal -------
 
@@ -291,7 +303,214 @@ function PaymentMethodModal({
 
 // ------- Main Admin Component -------
 
-export default function AdminClient({ team, paymentMethods }: Props) {
+// ------- Objectives Tab Component -------
+
+function ObjectivesTab({ team, objectives: initialObjectives }: { team: TeamMember[]; objectives: Objective[] }) {
+  const [selectedMember, setSelectedMember] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(getFiscalMonth(new Date()));
+  const [form, setForm] = useState({ objetivo_cash: 0, objetivo_cierres: 0, objetivo_agendas: 0 });
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [objectives, setObjectives] = useState(initialObjectives);
+
+  const monthOptions = getFiscalMonthOptions(12);
+  const activeTeam = team.filter((m) => m.activo);
+
+  // Load existing objective when member/month changes
+  const existing = objectives.find(
+    (o) => o.team_member_id === selectedMember && o.mes_fiscal === selectedMonth
+  );
+
+  function handleMemberChange(id: string) {
+    setSelectedMember(id);
+    setSaved(false);
+    const obj = objectives.find((o) => o.team_member_id === id && o.mes_fiscal === selectedMonth);
+    if (obj) {
+      setForm({ objetivo_cash: obj.objetivo_cash, objetivo_cierres: obj.objetivo_cierres, objetivo_agendas: obj.objetivo_agendas });
+    } else {
+      setForm({ objetivo_cash: 0, objetivo_cierres: 0, objetivo_agendas: 0 });
+    }
+  }
+
+  function handleMonthChange(month: string) {
+    // The selector gives us YYYY-MM-DD, but we need the fiscal month label
+    const d = new Date(month + "T12:00:00");
+    const label = getFiscalMonth(d);
+    setSelectedMonth(label);
+    setSaved(false);
+    const obj = objectives.find((o) => o.team_member_id === selectedMember && o.mes_fiscal === label);
+    if (obj) {
+      setForm({ objetivo_cash: obj.objetivo_cash, objetivo_cierres: obj.objetivo_cierres, objetivo_agendas: obj.objetivo_agendas });
+    } else {
+      setForm({ objetivo_cash: 0, objetivo_cierres: 0, objetivo_agendas: 0 });
+    }
+  }
+
+  async function handleSave() {
+    if (!selectedMember || !selectedMonth) return;
+    setLoading(true);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/admin/objectives", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          team_member_id: selectedMember,
+          mes_fiscal: selectedMonth,
+          ...form,
+        }),
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      const data = await res.json();
+      // Update local state
+      setObjectives((prev) => {
+        const idx = prev.findIndex(
+          (o) => o.team_member_id === selectedMember && o.mes_fiscal === selectedMonth
+        );
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], ...form };
+          return next;
+        }
+        return [...prev, data];
+      });
+      setSaved(true);
+    } catch {
+      alert("Error al guardar objetivo");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-5 space-y-4">
+        <h3 className="text-white font-semibold">Definir Objetivos Mensuales</h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs text-[var(--muted)] block mb-1">Miembro del equipo</label>
+            <select
+              value={selectedMember}
+              onChange={(e) => handleMemberChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--card-border)] text-white text-sm focus:border-[var(--purple)] outline-none"
+            >
+              <option value="">Seleccionar...</option>
+              {activeTeam.map((m) => (
+                <option key={m.id} value={m.id}>{m.nombre} ({m.rol || "sin rol"})</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-[var(--muted)] block mb-1">Mes fiscal</label>
+            <select
+              value={monthOptions.find((o) => {
+                const d = new Date(o.value + "T12:00:00");
+                return getFiscalMonth(d) === selectedMonth;
+              })?.value || ""}
+              onChange={(e) => handleMonthChange(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-[var(--background)] border border-[var(--card-border)] text-white text-sm focus:border-[var(--purple)] outline-none"
+            >
+              {monthOptions.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {selectedMember && (
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs text-[var(--muted)] block mb-1">Objetivo Cash (USD)</label>
+              <input
+                type="number"
+                min="0"
+                step="100"
+                value={form.objetivo_cash}
+                onChange={(e) => setForm((f) => ({ ...f, objetivo_cash: Number(e.target.value) || 0 }))}
+                className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--card-border)] text-white text-sm focus:border-[var(--purple)] outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[var(--muted)] block mb-1">Objetivo Cierres</label>
+              <input
+                type="number"
+                min="0"
+                value={form.objetivo_cierres}
+                onChange={(e) => setForm((f) => ({ ...f, objetivo_cierres: Number(e.target.value) || 0 }))}
+                className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--card-border)] text-white text-sm focus:border-[var(--purple)] outline-none"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[var(--muted)] block mb-1">Objetivo Agendas</label>
+              <input
+                type="number"
+                min="0"
+                value={form.objetivo_agendas}
+                onChange={(e) => setForm((f) => ({ ...f, objetivo_agendas: Number(e.target.value) || 0 }))}
+                className="w-full px-3 py-1.5 rounded-lg bg-[var(--background)] border border-[var(--card-border)] text-white text-sm focus:border-[var(--purple)] outline-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {selectedMember && (
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSave}
+              disabled={loading}
+              className="px-4 py-1.5 rounded-lg bg-[var(--purple)] text-white text-sm font-medium disabled:opacity-50 hover:bg-[var(--purple-dark)] transition-colors"
+            >
+              {loading ? "Guardando..." : existing ? "Actualizar Objetivo" : "Guardar Objetivo"}
+            </button>
+            {saved && <span className="text-[var(--green)] text-sm">Guardado!</span>}
+          </div>
+        )}
+      </div>
+
+      {/* Existing objectives table */}
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl overflow-hidden">
+        <div className="p-4 border-b border-[var(--card-border)]">
+          <h3 className="text-white font-semibold text-sm">Objetivos Cargados</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-[var(--muted)] text-xs uppercase bg-[var(--background)]">
+                <th className="text-left px-3 py-2">Nombre</th>
+                <th className="text-left px-3 py-2">Mes Fiscal</th>
+                <th className="text-right px-3 py-2">Cash</th>
+                <th className="text-right px-3 py-2">Cierres</th>
+                <th className="text-right px-3 py-2">Agendas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {objectives.map((o) => {
+                const member = team.find((m) => m.id === o.team_member_id);
+                return (
+                  <tr key={o.id || `${o.team_member_id}-${o.mes_fiscal}`} className="border-t border-[var(--card-border)]">
+                    <td className="px-3 py-2 text-white">{member?.nombre || o.team_member?.nombre || "?"}</td>
+                    <td className="px-3 py-2 text-[var(--muted)]">{o.mes_fiscal}</td>
+                    <td className="px-3 py-2 text-right text-[var(--green)]">{formatUSD(o.objetivo_cash)}</td>
+                    <td className="px-3 py-2 text-right text-white">{o.objetivo_cierres}</td>
+                    <td className="px-3 py-2 text-right text-white">{o.objetivo_agendas}</td>
+                  </tr>
+                );
+              })}
+              {objectives.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-3 py-4 text-center text-[var(--muted)]">Sin objetivos cargados</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminClient({ team, paymentMethods, objectives = [] }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("equipo");
   const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
   const [editingMethod, setEditingMethod] = useState<PaymentMethod | null | "new">(null);
@@ -301,6 +520,7 @@ export default function AdminClient({ team, paymentMethods }: Props) {
     { key: "metodos_pago", label: "Metodos de Pago" },
     { key: "programas", label: "Programas" },
     { key: "comisiones", label: "Comisiones" },
+    { key: "objetivos", label: "Objetivos" },
   ];
 
   return (
@@ -505,6 +725,11 @@ export default function AdminClient({ team, paymentMethods }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* TAB: Objetivos */}
+      {activeTab === "objetivos" && (
+        <ObjectivesTab team={team} objectives={objectives} />
       )}
 
       {/* Modals */}

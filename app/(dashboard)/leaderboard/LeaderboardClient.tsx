@@ -8,13 +8,23 @@ import { getCloserRankings } from "@/lib/gamification";
 import type { Lead, AtCommission } from "@/lib/types";
 import type { CloserRanking } from "@/lib/gamification";
 
+export interface ObjectiveData {
+  id: string;
+  team_member_id: string;
+  mes_fiscal: string;
+  objetivo_cash: number;
+  objetivo_cierres: number;
+  objetivo_agendas: number;
+}
+
 interface Props {
   leads: Lead[];
   currentMemberId: string;
   commissions: AtCommission[];
+  objectives?: ObjectiveData[];
 }
 
-export default function LeaderboardClient({ leads, currentMemberId, commissions }: Props) {
+export default function LeaderboardClient({ leads, currentMemberId, commissions, objectives = [] }: Props) {
   const [selectedMonth, setSelectedMonth] = useState(
     getFiscalStart().toISOString().split("T")[0]
   );
@@ -30,6 +40,13 @@ export default function LeaderboardClient({ leads, currentMemberId, commissions 
     for (const c of commissions) map.set(c.id, c);
     return map;
   }, [commissions]);
+
+  // Objectives lookup
+  const objMap = useMemo(() => {
+    const map = new Map<string, ObjectiveData>();
+    for (const o of objectives) map.set(o.team_member_id, o);
+    return map;
+  }, [objectives]);
 
   const medals = ["\u{1F947}", "\u{1F948}", "\u{1F949}"];
 
@@ -211,6 +228,41 @@ export default function LeaderboardClient({ leads, currentMemberId, commissions 
           </div>
         )}
       </div>
+
+      {/* Objectives Progress */}
+      {objectives.length > 0 && (
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+          <h2 className="text-lg font-semibold text-white mb-4">
+            Progreso vs Objetivo
+          </h2>
+          <div className="space-y-3">
+            {rankings.map((r) => {
+              const obj = objMap.get(r.closerId);
+              if (!obj || obj.objetivo_cash <= 0) return null;
+              const pct = Math.min((r.cash / obj.objetivo_cash) * 100, 100);
+              const pctLabel = ((r.cash / obj.objetivo_cash) * 100).toFixed(0);
+              return (
+                <div key={r.closerId}>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-white font-medium">{r.nombre}</span>
+                    <span className="text-[var(--muted)]">
+                      {formatUSD(r.cash)} / {formatUSD(obj.objetivo_cash)} ({pctLabel}%)
+                    </span>
+                  </div>
+                  <div className="w-full bg-white/5 rounded-full h-3 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        pct >= 100 ? "bg-[var(--green)]" : pct >= 70 ? "bg-[var(--yellow)]" : "bg-[var(--purple)]"
+                      }`}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
