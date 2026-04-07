@@ -172,13 +172,6 @@ export default function HomeAdmin({
           delta={delta(cashRenovaciones, prev?.cash_renovaciones)}
           icon={"\u{1F504}"}
         />
-        <KPICard
-          label="Cuotas"
-          value={cashCuotas}
-          format="usd"
-          delta={delta(cashCuotas, prev?.cash_cuotas)}
-          icon={"\u{1F4CB}"}
-        />
         {refunds > 0 && (
           <KPICard
             label="Refunds"
@@ -188,12 +181,6 @@ export default function HomeAdmin({
             valueClassName="text-[var(--red)]"
           />
         )}
-        <KPICard
-          label="Saldo Pendiente (30d)"
-          value={saldoPendiente}
-          format="usd"
-          icon={"\u{23F3}"}
-        />
         <KPICard
           label="Ventas Nuevas"
           value={ventasNuevasCount}
@@ -329,44 +316,6 @@ export default function HomeAdmin({
 
       {/* Alert Cards Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Cuotas Vencidas Hoy */}
-        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-white">
-              Cuotas Vencidas Hoy
-            </h2>
-            <span className="text-xs bg-[var(--red)]/15 text-[var(--red)] px-2 py-1 rounded-full font-medium">
-              {overduePayments.length}
-            </span>
-          </div>
-          {overduePayments.length === 0 ? (
-            <p className="text-[var(--muted)] text-sm">
-              No hay cuotas vencidas hoy
-            </p>
-          ) : (
-            <div className="space-y-2 max-h-48 overflow-y-auto">
-              {overduePayments.map((p) => (
-                <div
-                  key={p.id}
-                  className="flex items-center justify-between bg-[var(--red)]/5 border border-[var(--red)]/10 rounded-lg px-3 py-2"
-                >
-                  <div>
-                    <p className="text-sm text-white font-medium">
-                      Cuota #{p.numero_cuota}
-                    </p>
-                    <p className="text-xs text-[var(--muted)]">
-                      Lead: {p.lead_id?.slice(0, 8) ?? "\u2014"}
-                    </p>
-                  </div>
-                  <span className="text-sm font-bold text-[var(--red)]">
-                    {formatUSD(p.monto_usd)}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Clientes en Riesgo */}
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
           <div className="flex items-center justify-between mb-4">

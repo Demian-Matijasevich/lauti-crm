@@ -45,6 +45,7 @@ export default function RenovacionesClient({
   const [search, setSearch] = useState("");
   const [filterSemaforo, setFilterSemaforo] = useState<string>("todos");
   const [showRenewalForm, setShowRenewalForm] = useState<string | null>(null);
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const filteredQueue = useMemo(() => {
     let items = [...renewalQueue];
@@ -74,7 +75,7 @@ export default function RenovacionesClient({
       );
     }
     return (
-      <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-300 rounded-full font-medium">
+      <span className="text-xs px-2 py-0.5 bg-white/10 text-gray-200 rounded-full font-medium">
         Media
       </span>
     );
@@ -92,28 +93,28 @@ export default function RenovacionesClient({
       {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
-          <p className="text-sm text-gray-400">Tasa de renovacion</p>
+          <p className="text-sm text-[var(--muted)]">Tasa de renovacion</p>
           <p className="text-2xl font-bold text-green-400">
             {metrics.tasaRenovacion}%
           </p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-[var(--muted)]">
             {metrics.renewedCount}/{metrics.expiredCount} clientes
           </p>
         </div>
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
-          <p className="text-sm text-gray-400">Revenue por renovacion</p>
+          <p className="text-sm text-[var(--muted)]">Revenue por renovacion</p>
           <p className="text-2xl font-bold text-white">
             ${metrics.revenuePromedio.toLocaleString()}
           </p>
         </div>
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
-          <p className="text-sm text-gray-400">Revenue total renovaciones</p>
+          <p className="text-sm text-[var(--muted)]">Revenue total renovaciones</p>
           <p className="text-2xl font-bold text-blue-400">
             ${metrics.totalRevenue.toLocaleString()}
           </p>
         </div>
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
-          <p className="text-sm text-gray-400">Churn rate</p>
+          <p className="text-sm text-[var(--muted)]">Churn rate</p>
           <p className="text-2xl font-bold text-red-400">
             {metrics.churnRate}%
           </p>
@@ -127,7 +128,7 @@ export default function RenovacionesClient({
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "queue"
               ? "border-blue-400 text-blue-400"
-              : "border-transparent text-gray-400 hover:text-gray-200"
+              : "border-transparent text-[var(--muted)] hover:text-gray-200"
           }`}
         >
           Cola de renovaciones ({renewalQueue.length})
@@ -137,7 +138,7 @@ export default function RenovacionesClient({
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "historial"
               ? "border-blue-400 text-blue-400"
-              : "border-transparent text-gray-400 hover:text-gray-200"
+              : "border-transparent text-[var(--muted)] hover:text-gray-200"
           }`}
         >
           Historial ({renewalHistory.length})
@@ -153,7 +154,7 @@ export default function RenovacionesClient({
               placeholder="Buscar cliente..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg px-3 py-2 text-sm text-white w-64 placeholder-gray-500"
+              className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg px-3 py-2 text-sm text-white w-64 placeholder-[var(--muted)]"
             />
             <select
               value={filterSemaforo}
@@ -174,33 +175,33 @@ export default function RenovacionesClient({
               <table className="w-full text-sm">
                 <thead className="bg-white/5 text-left">
                   <tr>
-                    <th className="px-4 py-3 font-medium text-gray-400">Estado</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Cliente</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Programa</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Vencimiento</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Dias</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Health</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Prediccion</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Contacto</th>
-                    <th className="px-4 py-3 font-medium text-gray-400">Acciones</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Estado</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Cliente</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Programa</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Vencimiento</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Dias</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Health</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Prediccion</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Contacto</th>
+                    <th className="px-4 py-3 font-medium text-[var(--muted)]">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[var(--card-border)]">
-                  {filteredQueue.map((item) => (
+                {filteredQueue.map((item) => (
+                  <tbody key={item.id} className="divide-y divide-[var(--card-border)]">
                     <tr
-                      key={item.id}
-                      className={`hover:bg-white/5 ${
+                      className={`hover:bg-white/5 cursor-pointer ${
                         item.semaforo === "vencido" ? "bg-red-500/10" : ""
                       }`}
+                      onClick={() => setExpandedRow(expandedRow === item.id ? null : item.id)}
                     >
                       <td className="px-4 py-3">
                         {getSemaforoEmoji(item.semaforo)}
                       </td>
                       <td className="px-4 py-3 font-medium text-white">{item.nombre}</td>
-                      <td className="px-4 py-3 text-gray-400">
+                      <td className="px-4 py-3 text-[var(--muted)]">
                         {item.programa}
                       </td>
-                      <td className="px-4 py-3 text-gray-400">
+                      <td className="px-4 py-3 text-[var(--muted)]">
                         {item.fecha_vencimiento
                           ? new Date(item.fecha_vencimiento).toLocaleDateString(
                               "es-AR"
@@ -211,10 +212,10 @@ export default function RenovacionesClient({
                         <span
                           className={`text-xs font-medium ${
                             item.dias_restantes < 0
-                              ? "text-red-600"
+                              ? "text-red-400"
                               : item.dias_restantes <= 7
-                              ? "text-yellow-600"
-                              : "text-green-600"
+                              ? "text-yellow-400"
+                              : "text-green-400"
                           }`}
                         >
                           {item.dias_restantes < 0
@@ -226,10 +227,10 @@ export default function RenovacionesClient({
                         <span
                           className={`text-xs font-bold ${
                             item.health_score >= 80
-                              ? "text-green-600"
+                              ? "text-green-400"
                               : item.health_score >= 50
-                              ? "text-yellow-600"
-                              : "text-red-600"
+                              ? "text-yellow-400"
+                              : "text-red-400"
                           }`}
                         >
                           {item.health_score}
@@ -238,10 +239,10 @@ export default function RenovacionesClient({
                       <td className="px-4 py-3">
                         {getPredictionBadge(item)}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-400">
+                      <td className="px-4 py-3 text-xs text-[var(--muted)]">
                         {item.estado_contacto}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() =>
                             setShowRenewalForm(
@@ -267,18 +268,62 @@ export default function RenovacionesClient({
                         )}
                       </td>
                     </tr>
-                  ))}
-                  {filteredQueue.length === 0 && (
+                    {expandedRow === item.id && (
+                      <tr>
+                        <td colSpan={9} className="px-4 py-4 bg-white/[0.02]">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-semibold text-[var(--muted)] uppercase">Info del cliente</h4>
+                              <div className="space-y-1 text-sm">
+                                <p className="text-white font-medium">{item.nombre}</p>
+                                <p className="text-[var(--muted)]">Programa: {item.programa}</p>
+                                <p className="text-[var(--muted)]">Onboarding: {item.fecha_onboarding ? new Date(item.fecha_onboarding).toLocaleDateString("es-AR") : "-"}</p>
+                                <p className="text-[var(--muted)]">Duracion: {item.total_dias_programa}d</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-semibold text-[var(--muted)] uppercase">Estado de renovacion</h4>
+                              <div className="space-y-1 text-sm">
+                                <p className="text-[var(--muted)]">
+                                  Vencimiento: {item.fecha_vencimiento ? new Date(item.fecha_vencimiento).toLocaleDateString("es-AR") : "-"}
+                                </p>
+                                <p className={`font-medium ${
+                                  item.dias_restantes < 0 ? "text-red-400" : item.dias_restantes <= 7 ? "text-yellow-400" : "text-green-400"
+                                }`}>
+                                  {item.dias_restantes < 0 ? `${Math.abs(item.dias_restantes)}d vencido` : `${item.dias_restantes}d restantes`}
+                                </p>
+                                <p className="text-[var(--muted)]">Contacto: {item.estado_contacto}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              <h4 className="text-xs font-semibold text-[var(--muted)] uppercase">Health Score</h4>
+                              <div className="space-y-1 text-sm">
+                                <p className={`text-2xl font-bold ${
+                                  item.health_score >= 80 ? "text-green-400" : item.health_score >= 50 ? "text-yellow-400" : "text-red-400"
+                                }`}>
+                                  {item.health_score}
+                                </p>
+                                {getPredictionBadge(item)}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                ))}
+                {filteredQueue.length === 0 && (
+                  <tbody>
                     <tr>
                       <td
                         colSpan={9}
-                        className="px-4 py-12 text-center text-gray-500"
+                        className="px-4 py-12 text-center text-[var(--muted)]"
                       >
                         No hay renovaciones en cola
                       </td>
                     </tr>
-                  )}
-                </tbody>
+                  </tbody>
+                )}
               </table>
             </div>
           </div>
@@ -291,21 +336,21 @@ export default function RenovacionesClient({
             <table className="w-full text-sm">
               <thead className="bg-white/5 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-gray-400">Fecha</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Cliente</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Tipo</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Anterior</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Nuevo</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Monto</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Plan</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Estado</th>
-                  <th className="px-4 py-3 font-medium text-gray-400">Responsable</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Fecha</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Cliente</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Tipo</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Anterior</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Nuevo</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Monto</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Plan</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Estado</th>
+                  <th className="px-4 py-3 font-medium text-[var(--muted)]">Responsable</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--card-border)]">
                 {renewalHistory.map((r) => (
                   <tr key={r.id} className="hover:bg-white/5">
-                    <td className="px-4 py-3 text-gray-400">
+                    <td className="px-4 py-3 text-[var(--muted)]">
                       {r.fecha_renovacion
                         ? new Date(r.fecha_renovacion).toLocaleDateString("es-AR")
                         : "-"}
@@ -313,15 +358,15 @@ export default function RenovacionesClient({
                     <td className="px-4 py-3 font-medium text-white">
                       {r.client?.nombre ?? "-"}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">{r.tipo_renovacion ?? "-"}</td>
-                    <td className="px-4 py-3 text-gray-400">
+                    <td className="px-4 py-3 text-gray-200">{r.tipo_renovacion ?? "-"}</td>
+                    <td className="px-4 py-3 text-[var(--muted)]">
                       {r.programa_anterior ?? "-"}
                     </td>
-                    <td className="px-4 py-3 text-gray-300">{r.programa_nuevo ?? "-"}</td>
+                    <td className="px-4 py-3 text-gray-200">{r.programa_nuevo ?? "-"}</td>
                     <td className="px-4 py-3 font-medium text-white">
                       ${(r.monto_total ?? 0).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-gray-400">
+                    <td className="px-4 py-3 text-[var(--muted)]">
                       {r.plan_pago ?? "-"}
                     </td>
                     <td className="px-4 py-3">
@@ -337,7 +382,7 @@ export default function RenovacionesClient({
                         {r.estado ?? "pendiente"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-400">
+                    <td className="px-4 py-3 text-[var(--muted)]">
                       {r.responsable?.nombre ?? "-"}
                     </td>
                   </tr>
@@ -346,7 +391,7 @@ export default function RenovacionesClient({
                   <tr>
                     <td
                       colSpan={9}
-                      className="px-4 py-12 text-center text-gray-500"
+                      className="px-4 py-12 text-center text-[var(--muted)]"
                     >
                       Sin historial de renovaciones
                     </td>
@@ -509,7 +554,7 @@ function RenewalForm({
       <select
         value={receptor}
         onChange={(e) => setReceptor(e.target.value)}
-        className="border rounded px-2 py-1 text-sm w-full"
+        className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded px-2 py-1 text-sm text-white w-full"
       >
         <option value="JUANMA">JUANMA</option>
         <option value="Cuenta pesos Lauti">Cuenta pesos Lauti</option>
@@ -531,7 +576,7 @@ function RenewalForm({
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs px-3 py-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
+          className="text-xs px-3 py-1.5 bg-white/10 text-[var(--muted)] rounded hover:bg-white/20"
         >
           Cancelar
         </button>

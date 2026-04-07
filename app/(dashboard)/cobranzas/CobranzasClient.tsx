@@ -16,7 +16,7 @@ interface Props {
 }
 
 type FilterTipo = "todos" | "cuotas" | "renovaciones" | "deudores";
-type FilterSemaforo = "todos" | "vencido" | "urgente" | "proximo";
+type FilterPeriodo = "hoy" | "semana" | "mes" | "vencidas" | "todas";
 
 interface WeekBucket {
   label: string;
@@ -67,6 +67,24 @@ function getWeekBuckets(fiscalStart: string, fiscalEnd: string, items: Cobranzas
   return weeks;
 }
 
+function getToday(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getWeekRange(): { start: string; end: string } {
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return { start: fmt(monday), end: fmt(sunday) };
+}
+
 export default function CobranzasClient({
   initialQueue,
   fiscalItems,
@@ -79,15 +97,69 @@ export default function CobranzasClient({
 }: Props) {
   const [queue, setQueue] = useState(initialQueue);
   const [filterTipo, setFilterTipo] = useState<FilterTipo>("todos");
-  const [filterSemaforo, setFilterSemaforo] = useState<FilterSemaforo>("todos");
+  const [filterPeriodo, setFilterPeriodo] = useState<FilterPeriodo>("todas");
   const [search, setSearch] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
+  const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
   const canSeeAgent = session.can_see_agent;
 
+  const todayStr = getToday();
+  const weekRange = getWeekRange();
+
+  // Separate items with and without fecha_vencimiento
+  const { queueWithDate, queueParaRevisar } = useMemo(() => {
+    const withDate: CobranzasQueueItem[] = [];
+    const noDate: CobranzasQueueItem[] = [];
+    for (const item of queue) {
+      if (item.fecha_vencimiento) {
+        withDate.push(item);
+      } else {
+        // Only cuotas without fecha need review; tasks/renovaciones don't need it
+        if (item.tipo === "cuota") {
+          noDate.push(item);
+        } else {
+          withDate.push(item);
+        }
+      }
+    }
+    return { queueWithDate: withDate, queueParaRevisar: noDate };
+  }, [queue]);
+
+  // Filter by periodo
+  const periodoFiltered = useMemo(() => {
+    let items = [...queueWithDate];
+
+    if (filterPeriodo === "hoy") {
+      items = items.filter((i) => i.fecha_vencimiento === todayStr);
+    } else if (filterPeriodo === "semana") {
+      items = items.filter(
+        (i) =>
+          i.fecha_vencimiento &&
+          i.fecha_vencimiento >= weekRange.start &&
+          i.fecha_vencimiento <= weekRange.end
+      );
+    } else if (filterPeriodo === "mes") {
+      items = items.filter(
+        (i) =>
+          i.fecha_vencimiento &&
+          i.fecha_vencimiento >= fiscalStart &&
+          i.fecha_vencimiento <= fiscalEnd
+      );
+    } else if (filterPeriodo === "vencidas") {
+      items = items.filter(
+        (i) => i.fecha_vencimiento && i.fecha_vencimiento < todayStr
+      );
+    }
+    // "todas" = no filter
+
+    return items;
+  }, [queueWithDate, filterPeriodo, todayStr, weekRange, fiscalStart, fiscalEnd]);
+
+  // Apply tipo + search filters
   const filtered = useMemo(() => {
-    let items = [...queue];
+    let items = [...periodoFiltered];
 
     if (filterTipo === "cuotas") {
       items = items.filter(
@@ -103,10 +175,6 @@ export default function CobranzasClient({
       );
     }
 
-    if (filterSemaforo !== "todos") {
-      items = items.filter((i) => i.semaforo === filterSemaforo);
-    }
-
     if (search.trim()) {
       const s = search.toLowerCase();
       items = items.filter((i) =>
@@ -115,9 +183,16 @@ export default function CobranzasClient({
     }
 
     return items;
-  }, [queue, filterTipo, filterSemaforo, search]);
+  }, [periodoFiltered, filterTipo, search]);
 
   // --- KPI Summary ---
+  const cobrarHoyCount = queueWithDate.filter(
+    (i) => i.fecha_vencimiento === todayStr
+  ).length;
+  const cobrarHoyMonto = queueWithDate
+    .filter((i) => i.fecha_vencimiento === todayStr)
+    .reduce((sum, i) => sum + i.monto_usd, 0);
+
   const totalVencidas = fiscalItems.filter((i) => i.semaforo === "vencido").length;
   const montoVencido = fiscalItems
     .filter((i) => i.semaforo === "vencido")
@@ -132,6 +207,13 @@ export default function CobranzasClient({
     () => getWeekBuckets(fiscalStart, fiscalEnd, fiscalItems),
     [fiscalStart, fiscalEnd, fiscalItems]
   );
+
+  // Potencial del mes: cuotas pendientes + renovaciones esperadas
+  const renovacionesEsperadas = useMemo(() => {
+    return queue.filter(
+      (i) => i.tipo === "renovacion" || i.task_tipo === "renovacion"
+    ).length;
+  }, [queue]);
 
   function toggleWeek(idx: number) {
     setExpandedWeeks((prev) => {
@@ -231,10 +313,292 @@ export default function CobranzasClient({
     }
   }
 
+  // Period tab config
+  const periodoTabs: { key: FilterPeriodo; label: string; count?: number }[] = [
+    { key: "hoy", label: "Hoy", count: cobrarHoyCount },
+    {
+      key: "semana",
+      label: "Esta semana",
+      count: queueWithDate.filter(
+        (i) =>
+          i.fecha_vencimiento &&
+          i.fecha_vencimiento >= weekRange.start &&
+          i.fecha_vencimiento <= weekRange.end
+      ).length,
+    },
+    {
+      key: "mes",
+      label: "Este mes",
+      count: queueWithDate.filter(
+        (i) =>
+          i.fecha_vencimiento &&
+          i.fecha_vencimiento >= fiscalStart &&
+          i.fecha_vencimiento <= fiscalEnd
+      ).length,
+    },
+    {
+      key: "vencidas",
+      label: "Vencidas",
+      count: queueWithDate.filter(
+        (i) => i.fecha_vencimiento && i.fecha_vencimiento < todayStr
+      ).length,
+    },
+    { key: "todas", label: "Todas" },
+  ];
+
+  function renderQueueRow(item: CobranzasQueueItem) {
+    const isExpanded = expandedRow === item.id;
+    return (
+      <tbody key={item.id}>
+        <tr
+          className={`border-b border-[var(--card-border)] hover:bg-white/5 cursor-pointer ${getSemaforoBg(item.semaforo)}`}
+          onClick={() => setExpandedRow(isExpanded ? null : item.id)}
+        >
+          <td className="px-4 py-3">
+            <span
+              className={`inline-block w-2.5 h-2.5 rounded-full ${getSemaforoDot(item.semaforo)}`}
+              title={item.semaforo}
+            />
+          </td>
+          <td className="px-4 py-3">
+            <div>
+              <p className="font-medium text-white">{item.client_nombre}</p>
+              <p className="text-xs text-[var(--muted)]">
+                {item.programa ?? ""}
+              </p>
+            </div>
+          </td>
+          <td className="px-4 py-3">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white">
+              {getTipoLabel(item)}
+            </span>
+          </td>
+          <td className="px-4 py-3 font-medium text-white">
+            {item.monto_usd > 0
+              ? `$${item.monto_usd.toLocaleString()}`
+              : "-"}
+          </td>
+          <td className="px-4 py-3 text-xs text-[var(--muted)]">
+            {item.fecha_vencimiento ?? "-"}
+          </td>
+          <td className="px-4 py-3">
+            <span
+              className={`text-xs font-medium ${getSemaforoColor(item.semaforo)}`}
+            >
+              {getDiasLabel(item.dias_vencido)}
+            </span>
+          </td>
+          <td className="px-4 py-3">
+            <span className="text-xs text-[var(--muted)]">
+              {item.estado_contacto ?? "por_contactar"}
+            </span>
+          </td>
+          {canSeeAgent && (
+            <td className="px-4 py-3">
+              {item.task_asignado_a === "agent" ? (
+                <div>
+                  <span className="text-xs px-1.5 py-0.5 bg-[var(--purple)]/20 text-[var(--purple-light)] rounded">
+                    Bot
+                  </span>
+                  {item.last_log && (
+                    <p className="text-xs text-[var(--muted)] mt-1 truncate max-w-[150px]">
+                      {item.last_log.accion}
+                    </p>
+                  )}
+                </div>
+              ) : item.task_asignado_a === "human" ? (
+                <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
+                  Humano
+                </span>
+              ) : (
+                <span className="text-xs text-[var(--muted)]">-</span>
+              )}
+            </td>
+          )}
+          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+            <div className="flex gap-1">
+              <button
+                onClick={() => handleMarkContactado(item)}
+                disabled={activeAction === item.id}
+                className="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 disabled:opacity-50"
+                title="Marcar contactado"
+              >
+                Contactado
+              </button>
+              <button
+                onClick={() =>
+                  setActiveAction(
+                    activeAction === `pay-${item.id}`
+                      ? null
+                      : `pay-${item.id}`
+                  )
+                }
+                className="text-xs px-2 py-1 bg-green-500/20 text-[var(--green)] rounded hover:bg-green-500/30"
+                title="Marcar pagado"
+              >
+                Pagado
+              </button>
+              <button
+                onClick={() =>
+                  setActiveAction(
+                    activeAction === `note-${item.id}`
+                      ? null
+                      : `note-${item.id}`
+                  )
+                }
+                className="text-xs px-2 py-1 bg-white/10 text-[var(--muted)] rounded hover:bg-white/20"
+                title="Agregar nota"
+              >
+                Nota
+              </button>
+              {item.task_id && item.task_prioridad > 1 && (
+                <button
+                  onClick={() => handleEscalar(item)}
+                  disabled={activeAction === item.id}
+                  className="text-xs px-2 py-1 bg-red-500/20 text-[var(--red)] rounded hover:bg-red-500/30 disabled:opacity-50"
+                  title="Escalar prioridad"
+                >
+                  Escalar
+                </button>
+              )}
+            </div>
+            {/* Inline payment form */}
+            {activeAction === `pay-${item.id}` && (
+              <PaymentMiniForm
+                paymentId={item.payment_id}
+                taskId={item.task_id}
+                defaultMonto={item.monto_usd}
+                sessionTeamMemberId={session.team_member_id}
+                onSuccess={() => {
+                  setActiveAction(null);
+                  setQueue((prev) =>
+                    prev.filter((q) => q.id !== item.id)
+                  );
+                }}
+                onCancel={() => setActiveAction(null)}
+              />
+            )}
+            {/* Inline note form */}
+            {activeAction === `note-${item.id}` && (
+              <NoteMiniForm
+                taskId={item.task_id}
+                clientId={item.client_id}
+                authorId={session.team_member_id}
+                onSuccess={() => setActiveAction(null)}
+                onCancel={() => setActiveAction(null)}
+              />
+            )}
+          </td>
+        </tr>
+        {/* Expanded row with client details */}
+        {isExpanded && (
+          <tr className="border-b border-[var(--card-border)]">
+            <td colSpan={canSeeAgent ? 9 : 8} className="px-4 py-4 bg-white/[0.02]">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Client info */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-[var(--muted)] uppercase">Info del cliente</h4>
+                  <div className="space-y-1 text-sm">
+                    <p className="text-white font-medium">{item.client_nombre}</p>
+                    {item.client_telefono && (
+                      <p className="text-[var(--muted)]">Tel: {item.client_telefono}</p>
+                    )}
+                    {item.client_canal && (
+                      <p className="text-[var(--muted)]">Canal: {item.client_canal}</p>
+                    )}
+                    {item.programa && (
+                      <p className="text-[var(--muted)]">Programa: {item.programa}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Payment info */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-[var(--muted)] uppercase">Info de pago</h4>
+                  <div className="space-y-1 text-sm">
+                    <p className="text-white">
+                      {getTipoLabel(item)} - ${item.monto_usd.toLocaleString()}
+                    </p>
+                    <p className="text-[var(--muted)]">
+                      Vence: {item.fecha_vencimiento ?? "Sin fecha"}
+                    </p>
+                    <p className={`font-medium ${getSemaforoColor(item.semaforo)}`}>
+                      {getDiasLabel(item.dias_vencido)}
+                    </p>
+                    {item.payment_estado && (
+                      <p className="text-[var(--muted)]">Estado pago: {item.payment_estado}</p>
+                    )}
+                  </div>
+                </div>
+                {/* Task / Agent info */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-semibold text-[var(--muted)] uppercase">Estado de gestion</h4>
+                  <div className="space-y-1 text-sm">
+                    <p className="text-[var(--muted)]">
+                      Contacto: {item.estado_contacto ?? "por_contactar"}
+                    </p>
+                    {item.task_id && (
+                      <>
+                        <p className="text-[var(--muted)]">
+                          Tarea: {item.task_estado ?? "-"}
+                        </p>
+                        {canSeeAgent && item.task_asignado_a && (
+                          <p className="text-[var(--muted)]">
+                            Asignado: {item.task_asignado_a}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    {item.last_log && (
+                      <div className="mt-1 p-2 bg-white/5 rounded text-xs">
+                        <p className="text-[var(--muted)]">Ultimo log:</p>
+                        <p className="text-white">{item.last_log.accion}</p>
+                        <p className="text-[var(--muted)] mt-0.5">
+                          {new Date(item.last_log.created_at).toLocaleDateString("es-AR")}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        )}
+      </tbody>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* KPI Cards - Dark Theme */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      {/* Potencial del mes */}
+      <div className="bg-gradient-to-r from-[var(--purple)]/10 to-blue-500/10 border border-[var(--purple)]/30 rounded-xl p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-[var(--purple-light)]">Potencial del mes</p>
+            <p className="text-xs text-[var(--muted)] mt-0.5">
+              Periodo fiscal {fiscalStart} al {fiscalEnd}
+            </p>
+          </div>
+          <div className="flex items-center gap-6">
+            <div className="text-center">
+              <p className="text-xl font-bold text-white">${totalPorCobrar.toLocaleString()}</p>
+              <p className="text-xs text-[var(--muted)]">en cuotas por cobrar</p>
+            </div>
+            <div className="text-[var(--muted)]">+</div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-white">{renovacionesEsperadas}</p>
+              <p className="text-xs text-[var(--muted)]">clientes por renovar</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div className="bg-[var(--card-bg)] border border-orange-500/30 rounded-xl p-4">
+          <p className="text-xs text-orange-400 uppercase font-medium">Cobrar hoy</p>
+          <p className="text-2xl font-bold text-orange-400">{cobrarHoyCount}</p>
+          <p className="text-xs text-[var(--muted)] mt-1">${cobrarHoyMonto.toLocaleString()} USD</p>
+        </div>
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
           <p className="text-xs text-[var(--muted)] uppercase font-medium">Por cobrar este mes</p>
           <p className="text-2xl font-bold text-white">${totalPorCobrar.toLocaleString()}</p>
@@ -276,7 +640,7 @@ export default function CobranzasClient({
                   className="w-full flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--card-border)] hover:border-[var(--purple)]/50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-[var(--muted)] text-sm">{isExpanded ? "▾" : "▸"}</span>
+                    <span className="text-[var(--muted)] text-sm">{isExpanded ? "\u25BE" : "\u25B8"}</span>
                     <span className="text-sm font-medium text-white">{week.label}</span>
                     <span className="text-xs text-[var(--muted)]">
                       {week.items.length} cuota{week.items.length !== 1 ? "s" : ""}
@@ -350,9 +714,15 @@ export default function CobranzasClient({
         </div>
 
         {/* Task stats by status */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {(
             [
+              {
+                label: "Cobrar hoy",
+                count: cobrarHoyCount,
+                color: "text-orange-400",
+                bgColor: "bg-orange-500/10",
+              },
               {
                 label: "Pendientes",
                 count: allTasks.filter((t) => t.estado === "pending").length,
@@ -482,6 +852,28 @@ export default function CobranzasClient({
         )}
       </div>
 
+      {/* Period Filter Tabs */}
+      <div className="flex gap-1 border-b border-[var(--card-border)]">
+        {periodoTabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setFilterPeriodo(tab.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              filterPeriodo === tab.key
+                ? "border-[var(--purple)] text-[var(--purple-light)]"
+                : "border-transparent text-[var(--muted)] hover:text-gray-200"
+            }`}
+          >
+            {tab.label}
+            {tab.count !== undefined && (
+              <span className="ml-1.5 text-xs bg-white/10 px-1.5 py-0.5 rounded-full">
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
         <input
@@ -500,18 +892,6 @@ export default function CobranzasClient({
           <option value="cuotas">Cuotas</option>
           <option value="renovaciones">Renovaciones</option>
           <option value="deudores">Deudores</option>
-        </select>
-        <select
-          value={filterSemaforo}
-          onChange={(e) =>
-            setFilterSemaforo(e.target.value as FilterSemaforo)
-          }
-          className="border border-[var(--card-border)] bg-[var(--card-bg)] text-white rounded-lg px-3 py-2 text-sm focus:border-[var(--purple)] outline-none"
-        >
-          <option value="todos">Todos los semaforos</option>
-          <option value="vencido">Vencidas</option>
-          <option value="urgente">Urgentes</option>
-          <option value="proximo">Proximas</option>
         </select>
       </div>
 
@@ -538,150 +918,9 @@ export default function CobranzasClient({
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {filtered.map((item) => (
-                <tr
-                  key={item.id}
-                  className={`border-b border-[var(--card-border)] hover:bg-white/5 ${getSemaforoBg(item.semaforo)}`}
-                >
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-block w-2.5 h-2.5 rounded-full ${getSemaforoDot(item.semaforo)}`}
-                      title={item.semaforo}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div>
-                      <p className="font-medium text-white">{item.client_nombre}</p>
-                      <p className="text-xs text-[var(--muted)]">
-                        {item.programa ?? ""}
-                      </p>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white">
-                      {getTipoLabel(item)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-white">
-                    {item.monto_usd > 0
-                      ? `$${item.monto_usd.toLocaleString()}`
-                      : "-"}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[var(--muted)]">
-                    {item.fecha_vencimiento ?? "-"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`text-xs font-medium ${getSemaforoColor(item.semaforo)}`}
-                    >
-                      {getDiasLabel(item.dias_vencido)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-[var(--muted)]">
-                      {item.estado_contacto ?? "por_contactar"}
-                    </span>
-                  </td>
-                  {canSeeAgent && (
-                    <td className="px-4 py-3">
-                      {item.task_asignado_a === "agent" ? (
-                        <div>
-                          <span className="text-xs px-1.5 py-0.5 bg-[var(--purple)]/20 text-[var(--purple-light)] rounded">
-                            Bot
-                          </span>
-                          {item.last_log && (
-                            <p className="text-xs text-[var(--muted)] mt-1 truncate max-w-[150px]">
-                              {item.last_log.accion}
-                            </p>
-                          )}
-                        </div>
-                      ) : item.task_asignado_a === "human" ? (
-                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
-                          Humano
-                        </span>
-                      ) : (
-                        <span className="text-xs text-[var(--muted)]">-</span>
-                      )}
-                    </td>
-                  )}
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => handleMarkContactado(item)}
-                        disabled={activeAction === item.id}
-                        className="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 disabled:opacity-50"
-                        title="Marcar contactado"
-                      >
-                        Contactado
-                      </button>
-                      <button
-                        onClick={() =>
-                          setActiveAction(
-                            activeAction === `pay-${item.id}`
-                              ? null
-                              : `pay-${item.id}`
-                          )
-                        }
-                        className="text-xs px-2 py-1 bg-green-500/20 text-[var(--green)] rounded hover:bg-green-500/30"
-                        title="Marcar pagado"
-                      >
-                        Pagado
-                      </button>
-                      <button
-                        onClick={() =>
-                          setActiveAction(
-                            activeAction === `note-${item.id}`
-                              ? null
-                              : `note-${item.id}`
-                          )
-                        }
-                        className="text-xs px-2 py-1 bg-white/10 text-[var(--muted)] rounded hover:bg-white/20"
-                        title="Agregar nota"
-                      >
-                        Nota
-                      </button>
-                      {item.task_id && item.task_prioridad > 1 && (
-                        <button
-                          onClick={() => handleEscalar(item)}
-                          disabled={activeAction === item.id}
-                          className="text-xs px-2 py-1 bg-red-500/20 text-[var(--red)] rounded hover:bg-red-500/30 disabled:opacity-50"
-                          title="Escalar prioridad"
-                        >
-                          Escalar
-                        </button>
-                      )}
-                    </div>
-                    {/* Inline payment form */}
-                    {activeAction === `pay-${item.id}` && (
-                      <PaymentMiniForm
-                        paymentId={item.payment_id}
-                        taskId={item.task_id}
-                        defaultMonto={item.monto_usd}
-                        sessionTeamMemberId={session.team_member_id}
-                        onSuccess={() => {
-                          setActiveAction(null);
-                          setQueue((prev) =>
-                            prev.filter((q) => q.id !== item.id)
-                          );
-                        }}
-                        onCancel={() => setActiveAction(null)}
-                      />
-                    )}
-                    {/* Inline note form */}
-                    {activeAction === `note-${item.id}` && (
-                      <NoteMiniForm
-                        taskId={item.task_id}
-                        clientId={item.client_id}
-                        authorId={session.team_member_id}
-                        onSuccess={() => setActiveAction(null)}
-                        onCancel={() => setActiveAction(null)}
-                      />
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {filtered.length === 0 && (
+            {filtered.map((item) => renderQueueRow(item))}
+            {filtered.length === 0 && (
+              <tbody>
                 <tr>
                   <td
                     colSpan={canSeeAgent ? 9 : 8}
@@ -690,11 +929,66 @@ export default function CobranzasClient({
                     No hay items en la cola
                   </td>
                 </tr>
-              )}
-            </tbody>
+              </tbody>
+            )}
           </table>
         </div>
       </div>
+
+      {/* Para Revisar / Analizar section */}
+      {queueParaRevisar.length > 0 && (
+        <div className="bg-[var(--card-bg)] border border-yellow-500/30 rounded-xl overflow-hidden">
+          <div className="px-4 py-3 border-b border-yellow-500/30 bg-yellow-500/5">
+            <div className="flex items-center gap-2">
+              <span className="text-yellow-400 text-sm font-semibold">Para revisar / Analizar</span>
+              <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full">
+                {queueParaRevisar.length}
+              </span>
+            </div>
+            <p className="text-xs text-[var(--muted)] mt-1">
+              Cuotas sin fecha de vencimiento asignada. Requieren revision.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[var(--card-border)]">
+                  <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Cliente</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Tipo</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Monto</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Programa</th>
+                  <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Contacto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {queueParaRevisar.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-b border-[var(--card-border)] hover:bg-white/5 cursor-pointer"
+                    onClick={() => setExpandedRow(expandedRow === item.id ? null : item.id)}
+                  >
+                    <td className="px-4 py-3 font-medium text-white">{item.client_nombre}</td>
+                    <td className="px-4 py-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-500/10 text-yellow-400">
+                        {getTipoLabel(item)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-white">
+                      {item.monto_usd > 0
+                        ? `$${item.monto_usd.toLocaleString()}`
+                        : "-"}
+                    </td>
+                    <td className="px-4 py-3 text-[var(--muted)]">{item.programa ?? "-"}</td>
+                    <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                      {item.estado_contacto ?? "por_contactar"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
