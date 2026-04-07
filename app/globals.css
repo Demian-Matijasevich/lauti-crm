@@ -157,46 +157,52 @@ tr.hover-row:hover {
   main { padding-bottom: 80px !important; }
 }
 
-/* Bottom navigation bar */
+/* Bottom navigation bar — mobile only */
 .bottom-nav {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 64px;
-  background: var(--card-bg);
-  border-top: 1px solid var(--card-border);
-  display: flex;
-  align-items: center;
-  justify-content: space-around;
-  z-index: 40;
-  padding-bottom: env(safe-area-inset-bottom, 0);
+  display: none;
 }
 
-.bottom-nav-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  padding: 6px 12px;
-  border-radius: 8px;
-  color: var(--muted);
-  transition: color 0.2s, background-color 0.2s;
-  min-height: 44px;
-  min-width: 44px;
-  font-size: 10px;
-  text-decoration: none;
-}
+@media (max-width: 768px) {
+  .bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: var(--card-bg);
+    border-top: 1px solid var(--card-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    z-index: 40;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
 
-.bottom-nav-item.active {
-  color: var(--purple-light);
-  background: rgba(139, 92, 246, 0.1);
-}
+  .bottom-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    color: var(--muted);
+    transition: color 0.2s, background-color 0.2s;
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 10px;
+    text-decoration: none;
+  }
 
-.bottom-nav-item span.nav-icon {
-  font-size: 20px;
-  line-height: 1;
+  .bottom-nav-item.active {
+    color: var(--purple-light);
+    background: rgba(139, 92, 246, 0.1);
+  }
+
+  .bottom-nav-item span.nav-icon {
+    font-size: 20px;
+    line-height: 1;
+  }
 }
 
 /* ===== LOGIN STYLES ===== */
@@ -272,9 +278,7 @@ tr.hover-row:hover {
 
   /* Hide sidebar and nav */
   aside,
-  .lg\\:ml-64,
-  nav,
-  .print\\:hidden {
+  nav {
     display: none !important;
   }
 
@@ -283,40 +287,23 @@ tr.hover-row:hover {
     padding: 0 !important;
   }
 
-  /* Override dark theme for print */
+  /* Override dark theme for print via CSS variables */
+  :root {
+    --background: #ffffff;
+    --foreground: #111111;
+    --card-bg: #ffffff;
+    --card-border: #dddddd;
+    --muted: #666666;
+    --purple: #6d28d9;
+    --purple-light: #6d28d9;
+    --green: #16a34a;
+    --red: #dc2626;
+    --yellow: #ca8a04;
+  }
+
   * {
     color: #111 !important;
     border-color: #ddd !important;
-  }
-
-  .bg-\\[var\\(--card-bg\\)\\],
-  .bg-\\[var\\(--background\\)\\],
-  [class*="bg-"] {
-    background: white !important;
-  }
-
-  .text-white {
-    color: #111 !important;
-  }
-
-  .text-\\[var\\(--muted\\)\\] {
-    color: #666 !important;
-  }
-
-  .text-\\[var\\(--purple-light\\)\\] {
-    color: #6d28d9 !important;
-  }
-
-  .text-\\[var\\(--green\\)\\] {
-    color: #16a34a !important;
-  }
-
-  .text-\\[var\\(--red\\)\\] {
-    color: #dc2626 !important;
-  }
-
-  .text-\\[var\\(--yellow\\)\\] {
-    color: #ca8a04 !important;
   }
 
   table {

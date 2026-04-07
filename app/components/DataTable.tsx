@@ -204,7 +204,7 @@ export default function DataTable<T extends Record<string, unknown>>({
             <button
               onClick={() => setPage(Math.max(0, page - 1))}
               disabled={page === 0}
-              className="px-2 py-1 rounded bg-[var(--card-bg)] disabled:opacity-30 min-h-[44px]"
+              className="px-2 py-1 rounded bg-[var(--card-bg)] disabled:opacity-30"
             >
               {"\u2190"}
             </button>
@@ -212,7 +212,7 @@ export default function DataTable<T extends Record<string, unknown>>({
             <button
               onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
               disabled={page >= totalPages - 1}
-              className="px-2 py-1 rounded bg-[var(--card-bg)] disabled:opacity-30 min-h-[44px]"
+              className="px-2 py-1 rounded bg-[var(--card-bg)] disabled:opacity-30"
             >
               {"\u2192"}
             </button>

@@ -66,7 +66,7 @@ export default function ComparativaClient({ monthlyCash, leads }: Props) {
     function getMonthLeads(label: string) {
       return leads.filter((l) => {
         if (!l.fecha_llamada) return false;
-        const d = parseLocalDate(l.fecha_llamada);
+        const d = parseLocalDate(l.fecha_llamada.split("T")[0]);
         return getFiscalMonth(d) === label;
       });
     }

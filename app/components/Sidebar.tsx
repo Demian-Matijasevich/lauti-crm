@@ -373,8 +373,8 @@ export default function Sidebar({ session }: { session: AuthSession }) {
         </div>
       </aside>
 
-      {/* Bottom navigation bar - mobile only */}
-      <div className="lg:hidden bottom-nav">
+      {/* Bottom navigation bar - mobile only (visibility controlled by .bottom-nav in globals.css) */}
+      <div className="bottom-nav">
         {bottomNav.map((item) => {
           const active = !item.isMore && pathname === item.href;
           if (item.isMore) {
