@@ -61,20 +61,20 @@ export default function RenovacionesClient({
   function getPredictionBadge(item: RenewalQueueRow) {
     if (item.health_score >= 70) {
       return (
-        <span className="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+        <span className="text-xs px-2 py-0.5 bg-green-500/20 text-green-400 rounded-full font-medium">
           Alta probabilidad
         </span>
       );
     }
     if (item.health_score < 50) {
       return (
-        <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full font-medium">
+        <span className="text-xs px-2 py-0.5 bg-red-500/20 text-red-400 rounded-full font-medium">
           Riesgo churn
         </span>
       );
     }
     return (
-      <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium">
+      <span className="text-xs px-2 py-0.5 bg-gray-500/20 text-gray-300 rounded-full font-medium">
         Media
       </span>
     );
@@ -91,43 +91,43 @@ export default function RenovacionesClient({
     <div className="space-y-6">
       {/* Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white border rounded-xl p-4">
-          <p className="text-sm text-gray-500">Tasa de renovacion</p>
-          <p className="text-2xl font-bold text-green-600">
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-sm text-gray-400">Tasa de renovacion</p>
+          <p className="text-2xl font-bold text-green-400">
             {metrics.tasaRenovacion}%
           </p>
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-500">
             {metrics.renewedCount}/{metrics.expiredCount} clientes
           </p>
         </div>
-        <div className="bg-white border rounded-xl p-4">
-          <p className="text-sm text-gray-500">Revenue por renovacion</p>
-          <p className="text-2xl font-bold">
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-sm text-gray-400">Revenue por renovacion</p>
+          <p className="text-2xl font-bold text-white">
             ${metrics.revenuePromedio.toLocaleString()}
           </p>
         </div>
-        <div className="bg-white border rounded-xl p-4">
-          <p className="text-sm text-gray-500">Revenue total renovaciones</p>
-          <p className="text-2xl font-bold text-blue-600">
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-sm text-gray-400">Revenue total renovaciones</p>
+          <p className="text-2xl font-bold text-blue-400">
             ${metrics.totalRevenue.toLocaleString()}
           </p>
         </div>
-        <div className="bg-white border rounded-xl p-4">
-          <p className="text-sm text-gray-500">Churn rate</p>
-          <p className="text-2xl font-bold text-red-600">
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-sm text-gray-400">Churn rate</p>
+          <p className="text-2xl font-bold text-red-400">
             {metrics.churnRate}%
           </p>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b">
+      <div className="flex gap-2 border-b border-[var(--card-border)]">
         <button
           onClick={() => setActiveTab("queue")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "queue"
-              ? "border-blue-500 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "border-blue-400 text-blue-400"
+              : "border-transparent text-gray-400 hover:text-gray-200"
           }`}
         >
           Cola de renovaciones ({renewalQueue.length})
@@ -136,8 +136,8 @@ export default function RenovacionesClient({
           onClick={() => setActiveTab("historial")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px ${
             activeTab === "historial"
-              ? "border-blue-500 text-blue-600"
-              : "border-transparent text-gray-500 hover:text-gray-700"
+              ? "border-blue-400 text-blue-400"
+              : "border-transparent text-gray-400 hover:text-gray-200"
           }`}
         >
           Historial ({renewalHistory.length})
@@ -153,12 +153,12 @@ export default function RenovacionesClient({
               placeholder="Buscar cliente..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm w-64"
+              className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg px-3 py-2 text-sm text-white w-64 placeholder-gray-500"
             />
             <select
               value={filterSemaforo}
               onChange={(e) => setFilterSemaforo(e.target.value)}
-              className="border rounded-lg px-3 py-2 text-sm"
+              className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg px-3 py-2 text-sm text-white"
             >
               <option value="todos">Todos</option>
               <option value="vencido">Vencidos</option>
@@ -169,38 +169,38 @@ export default function RenovacionesClient({
           </div>
 
           {/* Queue Table */}
-          <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+          <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--card-border)] shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-left">
+                <thead className="bg-white/5 text-left">
                   <tr>
-                    <th className="px-4 py-3 font-medium text-gray-600">Estado</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Cliente</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Programa</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Vencimiento</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Dias</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Health</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Prediccion</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Contacto</th>
-                    <th className="px-4 py-3 font-medium text-gray-600">Acciones</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Estado</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Cliente</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Programa</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Vencimiento</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Dias</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Health</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Prediccion</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Contacto</th>
+                    <th className="px-4 py-3 font-medium text-gray-400">Acciones</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-[var(--card-border)]">
                   {filteredQueue.map((item) => (
                     <tr
                       key={item.id}
-                      className={`hover:bg-gray-50 ${
-                        item.semaforo === "vencido" ? "bg-red-50/30" : ""
+                      className={`hover:bg-white/5 ${
+                        item.semaforo === "vencido" ? "bg-red-500/10" : ""
                       }`}
                     >
                       <td className="px-4 py-3">
                         {getSemaforoEmoji(item.semaforo)}
                       </td>
-                      <td className="px-4 py-3 font-medium">{item.nombre}</td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="px-4 py-3 font-medium text-white">{item.nombre}</td>
+                      <td className="px-4 py-3 text-gray-400">
                         {item.programa}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="px-4 py-3 text-gray-400">
                         {item.fecha_vencimiento
                           ? new Date(item.fecha_vencimiento).toLocaleDateString(
                               "es-AR"
@@ -238,7 +238,7 @@ export default function RenovacionesClient({
                       <td className="px-4 py-3">
                         {getPredictionBadge(item)}
                       </td>
-                      <td className="px-4 py-3 text-xs text-gray-500">
+                      <td className="px-4 py-3 text-xs text-gray-400">
                         {item.estado_contacto}
                       </td>
                       <td className="px-4 py-3">
@@ -272,7 +272,7 @@ export default function RenovacionesClient({
                     <tr>
                       <td
                         colSpan={9}
-                        className="px-4 py-12 text-center text-gray-400"
+                        className="px-4 py-12 text-center text-gray-500"
                       >
                         No hay renovaciones en cola
                       </td>
@@ -286,58 +286,58 @@ export default function RenovacionesClient({
       )}
 
       {activeTab === "historial" && (
-        <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+        <div className="bg-[var(--card-bg)] rounded-xl border border-[var(--card-border)] shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-left">
+              <thead className="bg-white/5 text-left">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-gray-600">Fecha</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Cliente</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Tipo</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Anterior</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Nuevo</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Monto</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Plan</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Estado</th>
-                  <th className="px-4 py-3 font-medium text-gray-600">Responsable</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Fecha</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Cliente</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Tipo</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Anterior</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Nuevo</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Monto</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Plan</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Estado</th>
+                  <th className="px-4 py-3 font-medium text-gray-400">Responsable</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-[var(--card-border)]">
                 {renewalHistory.map((r) => (
-                  <tr key={r.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-600">
+                  <tr key={r.id} className="hover:bg-white/5">
+                    <td className="px-4 py-3 text-gray-400">
                       {r.fecha_renovacion
                         ? new Date(r.fecha_renovacion).toLocaleDateString("es-AR")
                         : "-"}
                     </td>
-                    <td className="px-4 py-3 font-medium">
+                    <td className="px-4 py-3 font-medium text-white">
                       {r.client?.nombre ?? "-"}
                     </td>
-                    <td className="px-4 py-3">{r.tipo_renovacion ?? "-"}</td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-gray-300">{r.tipo_renovacion ?? "-"}</td>
+                    <td className="px-4 py-3 text-gray-400">
                       {r.programa_anterior ?? "-"}
                     </td>
-                    <td className="px-4 py-3">{r.programa_nuevo ?? "-"}</td>
-                    <td className="px-4 py-3 font-medium">
+                    <td className="px-4 py-3 text-gray-300">{r.programa_nuevo ?? "-"}</td>
+                    <td className="px-4 py-3 font-medium text-white">
                       ${(r.monto_total ?? 0).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-gray-400">
                       {r.plan_pago ?? "-"}
                     </td>
                     <td className="px-4 py-3">
                       <span
                         className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                           r.estado === "pago"
-                            ? "bg-green-100 text-green-700"
+                            ? "bg-green-500/20 text-green-400"
                             : r.estado === "no_renueva"
-                            ? "bg-red-100 text-red-700"
-                            : "bg-yellow-100 text-yellow-700"
+                            ? "bg-red-500/20 text-red-400"
+                            : "bg-yellow-500/20 text-yellow-400"
                         }`}
                       >
                         {r.estado ?? "pendiente"}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-3 text-gray-400">
                       {r.responsable?.nombre ?? "-"}
                     </td>
                   </tr>
@@ -346,7 +346,7 @@ export default function RenovacionesClient({
                   <tr>
                     <td
                       colSpan={9}
-                      className="px-4 py-12 text-center text-gray-400"
+                      className="px-4 py-12 text-center text-gray-500"
                     >
                       Sin historial de renovaciones
                     </td>
@@ -441,16 +441,16 @@ function RenewalForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-2 p-4 bg-green-50 border border-green-200 rounded-lg space-y-3"
+      className="mt-2 p-4 bg-green-500/10 border border-green-500/30 rounded-lg space-y-3"
     >
-      <p className="text-sm font-medium">
+      <p className="text-sm font-medium text-white">
         Renovacion para {clientNombre}
       </p>
       <div className="grid grid-cols-2 gap-2">
         <select
           value={tipo}
           onChange={(e) => setTipo(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
+          className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded px-2 py-1 text-sm text-white"
         >
           <option value="resell">Resell</option>
           <option value="upsell_vip">Upsell VIP</option>
@@ -462,7 +462,7 @@ function RenewalForm({
         <select
           value={programaNuevo}
           onChange={(e) => setProgramaNuevo(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
+          className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded px-2 py-1 text-sm text-white"
         >
           <option value="mentoria_1k_pyf">Mentoria 1K PYF</option>
           <option value="mentoria_2_5k_pyf">Mentoria 2.5K PYF</option>
@@ -481,13 +481,13 @@ function RenewalForm({
           type="number"
           value={monto}
           onChange={(e) => setMonto(Number(e.target.value))}
-          className="border rounded px-2 py-1 text-sm"
+          className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded px-2 py-1 text-sm text-white"
           placeholder="Monto USD"
         />
         <select
           value={planPago}
           onChange={(e) => setPlanPago(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
+          className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded px-2 py-1 text-sm text-white"
         >
           <option value="paid_in_full">Paid in Full</option>
           <option value="2_cuotas">2 Cuotas</option>
@@ -495,7 +495,7 @@ function RenewalForm({
         <select
           value={metodo}
           onChange={(e) => setMetodo(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
+          className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded px-2 py-1 text-sm text-white"
         >
           <option value="binance">Binance</option>
           <option value="transferencia">Transferencia</option>
@@ -531,7 +531,7 @@ function RenewalForm({
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs px-3 py-1.5 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+          className="text-xs px-3 py-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600"
         >
           Cancelar
         </button>

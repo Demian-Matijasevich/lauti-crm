@@ -244,6 +244,7 @@ export async function fetchFiscalPendingPayments(): Promise<CobranzasQueueItem[]
   const start = toDateString(getFiscalStart());
   const end = toDateString(getFiscalEnd());
 
+  // Fetch payments in fiscal range OR with no vencimiento date (still need collecting)
   const { data, error } = await supabase
     .from("payments")
     .select(`
@@ -252,9 +253,8 @@ export async function fetchFiscalPendingPayments(): Promise<CobranzasQueueItem[]
       lead:leads(id, nombre, telefono)
     `)
     .eq("estado", "pendiente")
-    .gte("fecha_vencimiento", start)
-    .lte("fecha_vencimiento", end)
-    .order("fecha_vencimiento", { ascending: true });
+    .or(`and(fecha_vencimiento.gte.${start},fecha_vencimiento.lte.${end}),fecha_vencimiento.is.null`)
+    .order("fecha_vencimiento", { ascending: true, nullsFirst: false });
 
   if (error) throw new Error(`fetchFiscalPendingPayments: ${error.message}`);
 
