@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
       recipients.map(async (member) => {
         try {
           await getWebPush().sendNotification(
-            member.push_subscription as unknown as webpush.PushSubscription,
+            member.push_subscription as unknown as { endpoint: string; keys: { p256dh: string; auth: string } },
             payload
           );
           return { id: member.id, status: "sent" as const };
