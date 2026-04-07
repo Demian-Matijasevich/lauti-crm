@@ -13,7 +13,7 @@ import { PROGRAMS, CLIENT_ESTADOS_LABELS } from "@/lib/constants";
 import { formatUSD, formatDate, daysUntil } from "@/lib/format";
 import { parseLocalDate } from "@/lib/date-utils";
 
-type Tab = "overview" | "pagos" | "sesiones" | "seguimiento" | "followups" | "renovaciones" | "notas";
+type Tab = "overview" | "pagos" | "sesiones" | "seguimiento" | "followups" | "renovaciones" | "notas" | "timeline";
 
 interface Props {
   client: ClientWithRelations;
@@ -52,6 +52,7 @@ export default function ClientDetailClient({ client, session }: Props) {
     { key: "followups", label: `Follow-ups (${client.follow_ups.length})` },
     { key: "renovaciones", label: `Renovaciones (${client.renewals.length})` },
     { key: "notas", label: "Notas del equipo" },
+    { key: "timeline", label: "Timeline" },
   ];
 
   const diasRestantes = (() => {
@@ -626,6 +627,141 @@ export default function ClientDetailClient({ client, session }: Props) {
           )}
         </div>
       )}
+
+      {tab === "timeline" && (() => {
+        // Build timeline events
+        interface TimelineEvent {
+          date: string;
+          type: "creacion" | "pago" | "sesion" | "followup" | "nota" | "renovacion" | "estado";
+          color: string;
+          title: string;
+          description: string;
+        }
+
+        const events: TimelineEvent[] = [];
+
+        // Client creation
+        if (client.created_at) {
+          events.push({
+            date: client.created_at,
+            type: "creacion",
+            color: "var(--purple)",
+            title: "Cliente creado",
+            description: `${client.nombre} ingreso al programa${client.programa ? ` (${PROGRAMS[client.programa]?.label ?? client.programa})` : ""}`,
+          });
+        }
+
+        // Onboarding
+        if (client.fecha_onboarding) {
+          events.push({
+            date: client.fecha_onboarding,
+            type: "creacion",
+            color: "var(--green)",
+            title: "Onboarding",
+            description: `Fecha de onboarding registrada`,
+          });
+        }
+
+        // Payments
+        client.payments.forEach((p) => {
+          const dateStr = p.fecha_pago ?? p.created_at;
+          events.push({
+            date: dateStr,
+            type: "pago",
+            color: p.estado === "pagado" ? "var(--green)" : p.estado === "pendiente" ? "var(--yellow)" : "var(--red)",
+            title: `Pago #${p.numero_cuota} — ${formatUSD(p.monto_usd)}`,
+            description: `Estado: ${p.estado}${p.metodo_pago ? ` | Metodo: ${p.metodo_pago}` : ""}${p.es_renovacion ? " (renovacion)" : ""}`,
+          });
+        });
+
+        // Sessions
+        client.sessions.forEach((s) => {
+          const dateStr = s.fecha ?? s.created_at;
+          events.push({
+            date: dateStr,
+            type: "sesion",
+            color: "var(--blue, #3b82f6)",
+            title: `Sesion #${s.numero_sesion} — ${s.tipo_sesion.replace(/_/g, " ")}`,
+            description: `Estado: ${s.estado}${s.rating ? ` | Rating: ${s.rating}/10` : ""}${s.pitch_upsell ? " | Pitch upsell" : ""}`,
+          });
+        });
+
+        // Follow-ups
+        client.follow_ups.forEach((fu) => {
+          events.push({
+            date: fu.fecha ?? fu.created_at,
+            type: "followup",
+            color: "var(--cyan, #06b6d4)",
+            title: `Follow-up (${fu.tipo})`,
+            description: `${fu.notas ?? ""}${fu.proxima_accion ? ` | Proxima: ${fu.proxima_accion}` : ""}`,
+          });
+        });
+
+        // Renewals
+        client.renewals.forEach((r) => {
+          const dateStr = r.fecha_renovacion ?? r.created_at;
+          events.push({
+            date: dateStr,
+            type: "renovacion",
+            color: "var(--purple-light, #a78bfa)",
+            title: `Renovacion — ${r.tipo_renovacion?.replace(/_/g, " ") ?? "---"}`,
+            description: `${formatUSD(r.monto_total)}${r.programa_nuevo ? ` → ${PROGRAMS[r.programa_nuevo]?.label ?? r.programa_nuevo}` : ""} | Estado: ${r.estado ?? "---"}`,
+          });
+        });
+
+        // Notes
+        notes.forEach((n) => {
+          events.push({
+            date: n.created_at,
+            type: "nota",
+            color: "var(--muted)",
+            title: `Nota del equipo`,
+            description: n.content.length > 120 ? n.content.slice(0, 120) + "..." : n.content,
+          });
+        });
+
+        // Sort by date descending (newest first)
+        events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        return (
+          <div className="space-y-1">
+            {events.length === 0 ? (
+              <EmptyState message="Sin eventos en el timeline" />
+            ) : (
+              <div className="relative">
+                {/* Vertical line */}
+                <div className="absolute left-[7px] top-3 bottom-3 w-[2px] bg-[var(--card-border)]" />
+
+                <div className="space-y-4">
+                  {events.map((ev, i) => (
+                    <div key={`${ev.type}-${i}`} className="relative flex gap-4 pl-6">
+                      {/* Dot */}
+                      <div
+                        className="absolute left-0 top-1.5 w-4 h-4 rounded-full border-2 shrink-0"
+                        style={{ borderColor: ev.color, backgroundColor: "var(--card-bg)" }}
+                      />
+
+                      {/* Content */}
+                      <div className="flex-1 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: ev.color }}>
+                            {ev.type === "creacion" ? "Creacion" : ev.type === "pago" ? "Pago" : ev.type === "sesion" ? "Sesion 1a1" : ev.type === "followup" ? "Follow-up" : ev.type === "renovacion" ? "Renovacion" : ev.type === "nota" ? "Nota" : "Estado"}
+                          </span>
+                          <span className="text-xs text-[var(--muted)]">
+                            {new Date(ev.date).toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-white font-medium">{ev.title}</p>
+                        <p className="text-xs text-[var(--muted)] mt-0.5">{ev.description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

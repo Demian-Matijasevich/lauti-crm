@@ -231,6 +231,18 @@ export default function Sidebar({ session }: { session: AuthSession }) {
         </nav>
 
         <div className="p-4 border-t border-[var(--card-border)] mt-auto space-y-2">
+          <button
+            onClick={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
+            className="flex items-center gap-2 px-3 py-2 text-sm text-[var(--muted)] hover:text-white hover:bg-white/5 rounded-lg transition-colors w-full"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span>Buscar</span>
+            <kbd className="ml-auto px-1.5 py-0.5 text-[10px] bg-white/5 border border-[var(--card-border)] rounded">
+              Cmd+K
+            </kbd>
+          </button>
           {pushStatus === "idle" && (
             <button
               onClick={handleEnablePush}
