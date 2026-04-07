@@ -5,6 +5,7 @@ import { getFiscalStart, getFiscalEnd, getFiscalMonth } from "@/lib/date-utils";
 import HomeAdmin from "./HomeAdmin";
 import HomeCloser from "./HomeCloser";
 import HomeSetter from "./HomeSetter";
+import HomeMel from "./HomeMel";
 import type { MonthlyCash, Payment, Client, Lead, CloserKPI, Commission, AtCommission, RenewalQueueRow } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,142 @@ export default async function DashboardPage() {
   if (!session) redirect("/login");
 
   const supabase = createServerClient();
+
+  // Mel: admin + cobranzas — specialized collections dashboard
+  const isMel = session.can_see_agent && session.roles.includes("cobranzas");
+  if (isMel) {
+    const supabaseMel = createServerClient();
+    const today = new Date().toISOString().split("T")[0];
+    const fiscalStart = getFiscalStart();
+    const fiscalEnd = getFiscalEnd();
+    const fiscalStartStr = fiscalStart.toISOString().split("T")[0];
+    const fiscalEndStr = fiscalEnd.toISOString().split("T")[0];
+
+    // Week boundaries (Mon-Sun)
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - daysSinceMonday);
+    monday.setHours(0, 0, 0, 0);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const mondayStr = monday.toISOString().split("T")[0];
+    const sundayStr = sunday.toISOString().split("T")[0];
+
+    const [dueToday, paidThisMonth, overdueRes, melMemberRes, weeklyPaidRes] = await Promise.all([
+      // Cuotas due today
+      supabaseMel
+        .from("payments")
+        .select("id, monto_usd")
+        .eq("estado", "pendiente")
+        .eq("fecha_vencimiento", today),
+      // Paid this fiscal month (by anyone — Mel sees all)
+      supabaseMel
+        .from("payments")
+        .select("id, monto_usd, fecha_pago")
+        .eq("estado", "pagado")
+        .gte("fecha_pago", fiscalStartStr)
+        .lte("fecha_pago", fiscalEndStr),
+      // Overdue without payment
+      supabaseMel
+        .from("payments")
+        .select(`
+          id, monto_usd, fecha_vencimiento, numero_cuota,
+          client:clients(id, nombre, telefono, instagram),
+          lead:leads(id, nombre, telefono, instagram)
+        `)
+        .eq("estado", "pendiente")
+        .lte("fecha_vencimiento", today)
+        .order("fecha_vencimiento", { ascending: true }),
+      // Mel's team_member record for commission
+      supabaseMel
+        .from("team_members")
+        .select("id, nombre, at_comision_closer, at_comision_setter, at_comision_cobranzas, at_comision_total")
+        .eq("id", session.team_member_id)
+        .single(),
+      // Paid this week for weekly chart
+      supabaseMel
+        .from("payments")
+        .select("monto_usd, fecha_pago")
+        .eq("estado", "pagado")
+        .gte("fecha_pago", mondayStr)
+        .lte("fecha_pago", sundayStr),
+    ]);
+
+    const dueTodayData = dueToday.data ?? [];
+    const paidData = paidThisMonth.data ?? [];
+    const overdueData = (overdueRes.data ?? []) as any[];
+
+    // Build urgent payments list (due today + overdue)
+    const urgentPayments = overdueData.map((p: any) => {
+      const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento + "T00:00:00") : new Date();
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+      const diasDiff = Math.floor((venc.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
+      return {
+        id: p.id,
+        payment_id: p.id,
+        nombre: p.client?.nombre ?? p.lead?.nombre ?? "Sin nombre",
+        telefono: p.client?.telefono ?? p.lead?.telefono ?? null,
+        instagram: p.client?.instagram ?? p.lead?.instagram ?? null,
+        monto_usd: p.monto_usd ?? 0,
+        fecha_vencimiento: p.fecha_vencimiento,
+        dias_vencido: diasDiff,
+        numero_cuota: p.numero_cuota ?? 1,
+      };
+    });
+
+    // Weekly paid chart data
+    const dayNames = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
+    const weeklyMap: Record<string, number> = {};
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      weeklyMap[d.toISOString().split("T")[0]] = 0;
+    }
+    for (const p of (weeklyPaidRes.data ?? []) as { monto_usd: number; fecha_pago: string }[]) {
+      if (p.fecha_pago && weeklyMap[p.fecha_pago] !== undefined) {
+        weeklyMap[p.fecha_pago] += p.monto_usd;
+      }
+    }
+    const weeklyPaid = Object.entries(weeklyMap).map(([dia, monto], i) => ({
+      dia,
+      label: dayNames[i] ?? dia,
+      monto,
+    }));
+
+    const melComision = melMemberRes.data
+      ? {
+          id: melMemberRes.data.id,
+          nombre: melMemberRes.data.nombre,
+          at_comision_closer: melMemberRes.data.at_comision_closer ?? 0,
+          at_comision_setter: melMemberRes.data.at_comision_setter ?? 0,
+          at_comision_cobranzas: melMemberRes.data.at_comision_cobranzas ?? 0,
+          at_comision_total: melMemberRes.data.at_comision_total ?? 0,
+        }
+      : null;
+
+    return (
+      <HomeMel
+        cuotasPorCobrarHoy={{
+          count: dueTodayData.length,
+          monto: dueTodayData.reduce((s: number, p: any) => s + (p.monto_usd ?? 0), 0),
+        }}
+        cuotasCobradasMes={{
+          count: paidData.length,
+          monto: paidData.reduce((s: number, p: any) => s + (p.monto_usd ?? 0), 0),
+        }}
+        vencidasSinCobrar={{
+          count: overdueData.length,
+          monto: overdueData.reduce((s: number, p: any) => s + (p.monto_usd ?? 0), 0),
+        }}
+        melComision={melComision}
+        urgentPayments={urgentPayments}
+        weeklyPaid={weeklyPaid}
+      />
+    );
+  }
 
   if (session.is_admin) {
     // Fetch admin data

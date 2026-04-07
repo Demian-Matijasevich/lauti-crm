@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import type { AuthSession } from "@/lib/types";
 import { isPushSupported, subscribeToPush, getPushPermission } from "@/lib/push-notifications";
@@ -54,6 +54,7 @@ function getNav(session: AuthSession): NavSection[] {
         items: [
           { href: "/closers", label: "Closers Analytics", icon: "\u{1F3C6}" },
           { href: "/leaderboard", label: "Leaderboard", icon: "\u{1F947}" },
+          { href: "/comparativa", label: "Comparativa", icon: "\u{1F4CA}" },
           { href: "/ig-metrics", label: "IG Metrics", icon: "\u{1F4F1}" },
           { href: "/reportes", label: "Reportes Diarios", icon: "\u{1F4DD}" },
         ],
@@ -150,12 +151,111 @@ function getNav(session: AuthSession): NavSection[] {
   ];
 }
 
+interface BottomNavItem {
+  href: string;
+  label: string;
+  icon: React.ReactNode;
+  isMore?: boolean;
+}
+
+function getBottomNav(session: AuthSession): BottomNavItem[] {
+  const { is_admin, roles } = session;
+
+  const HomeIcon = (
+    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+    </svg>
+  );
+  const PipeIcon = (
+    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+    </svg>
+  );
+  const CobranzasIcon = (
+    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  );
+  const ClientesIcon = (
+    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  );
+  const MoreIcon = (
+    <svg width="22" height="22" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+    </svg>
+  );
+
+  if (is_admin) {
+    return [
+      { href: "/", label: "Home", icon: HomeIcon },
+      { href: "/pipeline", label: "Pipeline", icon: PipeIcon },
+      { href: "/cobranzas", label: "Cobranzas", icon: CobranzasIcon },
+      { href: "/clientes", label: "Clientes", icon: ClientesIcon },
+      { href: "#more", label: "Mas", icon: MoreIcon, isMore: true },
+    ];
+  }
+
+  if (roles.includes("seguimiento")) {
+    return [
+      { href: "/", label: "Home", icon: HomeIcon },
+      { href: "/clientes", label: "Clientes", icon: ClientesIcon },
+      { href: "/tracker", label: "Tracker", icon: PipeIcon },
+      { href: "#more", label: "Mas", icon: MoreIcon, isMore: true },
+    ];
+  }
+
+  return [
+    { href: "/", label: "Home", icon: HomeIcon },
+    { href: "/pipeline", label: "Pipeline", icon: PipeIcon },
+    { href: "/leaderboard", label: "Ranking", icon: CobranzasIcon },
+    { href: "#more", label: "Mas", icon: MoreIcon, isMore: true },
+  ];
+}
+
 export default function Sidebar({ session }: { session: AuthSession }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pushStatus, setPushStatus] = useState<"idle" | "enabled" | "denied" | "unsupported">("idle");
   const nav = getNav(session);
+  const bottomNav = getBottomNav(session);
+
+  // Swipe handling
+  const touchStartX = useRef(0);
+  const touchStartY = useRef(0);
+
+  const handleTouchStart = useCallback((e: TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  }, []);
+
+  const handleTouchEnd = useCallback((e: TouchEvent) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartX.current;
+    const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartY.current);
+
+    // Only handle horizontal swipes (not vertical scrolling)
+    if (deltaY > Math.abs(deltaX)) return;
+
+    // Swipe right from left edge to open
+    if (deltaX > 80 && touchStartX.current < 30 && !open) {
+      setOpen(true);
+    }
+    // Swipe left to close
+    if (deltaX < -80 && open) {
+      setOpen(false);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    document.addEventListener("touchstart", handleTouchStart, { passive: true });
+    document.addEventListener("touchend", handleTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", handleTouchStart);
+      document.removeEventListener("touchend", handleTouchEnd);
+    };
+  }, [handleTouchStart, handleTouchEnd]);
 
   useEffect(() => { setOpen(false); }, [pathname]);
 
@@ -184,20 +284,22 @@ export default function Sidebar({ session }: { session: AuthSession }) {
     <>
       {/* Mobile top bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-[var(--card-bg)] border-b border-[var(--card-border)] flex items-center justify-between px-4 z-40">
-        <button onClick={() => setOpen(true)} className="text-white text-xl">{"\u2630"}</button>
+        <button onClick={() => setOpen(true)} className="text-white text-xl min-h-[44px] flex items-center">{"\u2630"}</button>
         <span className="text-white font-semibold">Lauti CRM</span>
         <div className="w-6" />
       </div>
 
       {/* Overlay */}
       {open && (
-        <div className="lg:hidden fixed inset-0 bg-black/60 z-50" onClick={() => setOpen(false)} />
+        <div className="lg:hidden fixed inset-0 bg-black/60 z-50 animate-fade-in" onClick={() => setOpen(false)} />
       )}
 
       {/* Sidebar */}
-      <aside className={`fixed left-0 top-0 bottom-0 w-64 bg-[var(--card-bg)] border-r border-[var(--card-border)] z-50 transition-transform duration-200 ${
-        open ? "translate-x-0" : "-translate-x-full"
-      } lg:translate-x-0 overflow-y-auto`}>
+      <aside
+        className={`fixed left-0 top-0 bottom-0 w-64 bg-[var(--card-bg)] border-r border-[var(--card-border)] z-50 transition-transform duration-200 ${
+          open ? "translate-x-0" : "-translate-x-full"
+        } lg:translate-x-0 overflow-y-auto`}
+      >
         <div className="p-4 border-b border-[var(--card-border)]">
           <h2 className="text-lg font-bold text-white">Lauti CRM</h2>
           <p className="text-xs text-[var(--muted)]">{session.nombre} — {session.roles.join(", ")}</p>
@@ -215,9 +317,9 @@ export default function Sidebar({ session }: { session: AuthSession }) {
                   <a
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-colors ${
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm transition-all duration-200 ${
                       active
-                        ? "bg-[var(--purple)]/15 text-[var(--purple-light)] font-medium"
+                        ? "sidebar-item-active text-[var(--purple-light)] font-medium"
                         : "text-[var(--muted)] hover:text-white hover:bg-white/5"
                     }`}
                   >
@@ -268,6 +370,35 @@ export default function Sidebar({ session }: { session: AuthSession }) {
           </button>
         </div>
       </aside>
+
+      {/* Bottom navigation bar - mobile only */}
+      <div className="lg:hidden bottom-nav">
+        {bottomNav.map((item) => {
+          const active = !item.isMore && pathname === item.href;
+          if (item.isMore) {
+            return (
+              <button
+                key="more"
+                onClick={() => setOpen(true)}
+                className="bottom-nav-item"
+              >
+                <span className="nav-icon">{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            );
+          }
+          return (
+            <a
+              key={item.href}
+              href={item.href}
+              className={`bottom-nav-item ${active ? "active" : ""}`}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              <span>{item.label}</span>
+            </a>
+          );
+        })}
+      </div>
     </>
   );
 }
