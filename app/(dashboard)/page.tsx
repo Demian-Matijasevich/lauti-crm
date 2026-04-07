@@ -5,7 +5,7 @@ import { getFiscalStart, getFiscalEnd, getFiscalMonth } from "@/lib/date-utils";
 import HomeAdmin from "./HomeAdmin";
 import HomeCloser from "./HomeCloser";
 import HomeSetter from "./HomeSetter";
-import type { MonthlyCash, Payment, Client, Lead, CloserKPI, Commission } from "@/lib/types";
+import type { MonthlyCash, Payment, Client, Lead, CloserKPI, Commission, AtCommission } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,7 @@ export default async function DashboardPage() {
     const fiscalEnd = getFiscalEnd();
     const today = new Date().toISOString().split("T")[0];
 
-    const [cashRes, paymentsRes, overdueRes, atRiskRes, commissionsRes, leadsAtRes] = await Promise.all([
+    const [cashRes, paymentsRes, overdueRes, atRiskRes, commissionsRes, leadsAtRes, atCommRes] = await Promise.all([
       supabase.from("v_monthly_cash").select("*"),
       supabase
         .from("payments")
@@ -41,6 +41,9 @@ export default async function DashboardPage() {
         .lt("health_score", 50),
       supabase.from("v_commissions").select("*"),
       supabase.from("leads").select("at_cash_7_7,at_cash_cuotas_7_7,ticket_total").gt("at_cash_7_7", 0),
+      supabase.from("team_members")
+        .select("id,nombre,at_comision_closer,at_comision_setter,at_comision_cobranzas,at_comision_total")
+        .gt("at_comision_total", 0),
     ]);
 
     // Calculate Airtable totals for current period
@@ -55,6 +58,7 @@ export default async function DashboardPage() {
         overduePayments={(overdueRes.data as Payment[]) ?? []}
         atRiskClients={(atRiskRes.data as Client[]) ?? []}
         commissions={(commissionsRes.data as Commission[]) ?? []}
+        atCommissions={(atCommRes.data as AtCommission[]) ?? []}
         atCashCollected={atCashTotal}
         atCuotas={atCuotasTotal}
       />

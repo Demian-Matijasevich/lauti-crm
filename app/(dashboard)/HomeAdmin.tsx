@@ -16,7 +16,7 @@ import SaleBanner from "@/app/components/SaleBanner";
 import { formatUSD, formatDate } from "@/lib/format";
 import { getFiscalStart, getFiscalEnd, getFiscalMonth, parseLocalDate } from "@/lib/date-utils";
 import { subMonths } from "date-fns";
-import type { MonthlyCash, Payment, Client, Commission } from "@/lib/types";
+import type { MonthlyCash, Payment, Client, Commission, AtCommission } from "@/lib/types";
 
 interface Props {
   monthlyCash: MonthlyCash[];
@@ -24,6 +24,7 @@ interface Props {
   overduePayments: Payment[];
   atRiskClients: Client[];
   commissions: Commission[];
+  atCommissions: AtCommission[];
   atCashCollected: number;
   atCuotas: number;
 }
@@ -34,6 +35,7 @@ export default function HomeAdmin({
   overduePayments,
   atRiskClients,
   commissions,
+  atCommissions,
   atCashCollected,
   atCuotas,
 }: Props) {
@@ -113,21 +115,20 @@ export default function HomeAdmin({
   // Only show team members with sales/collection roles
   const COMISION_TEAM = ["Iván", "Joaquín", "Jorge", "Mel"];
 
-  // Commissions for selected fiscal month
-  // Mel's commission comes from v_commissions.comision_cobranzas (10% of payments where cobrador_id = Mel)
+  // Airtable-sourced commissions (source of truth)
   const monthCommissions = useMemo(() => {
-    return commissions
-      .filter((c) => c.mes_fiscal === currentLabel && COMISION_TEAM.includes(c.nombre) && c.comision_total > 0)
-      .sort((a, b) => b.comision_total - a.comision_total);
-  }, [commissions, currentLabel]);
+    return atCommissions
+      .filter((c) => COMISION_TEAM.includes(c.nombre) && c.at_comision_total > 0)
+      .sort((a, b) => b.at_comision_total - a.at_comision_total);
+  }, [atCommissions]);
 
   const commissionTotals = useMemo(() => {
     return monthCommissions.reduce(
       (acc, c) => ({
-        closer: acc.closer + c.comision_closer,
-        setter: acc.setter + c.comision_setter,
-        cobranzas: acc.cobranzas + c.comision_cobranzas,
-        total: acc.total + c.comision_total,
+        closer: acc.closer + c.at_comision_closer,
+        setter: acc.setter + c.at_comision_setter,
+        cobranzas: acc.cobranzas + c.at_comision_cobranzas,
+        total: acc.total + c.at_comision_total,
       }),
       { closer: 0, setter: 0, cobranzas: 0, total: 0 }
     );
@@ -285,21 +286,21 @@ export default function HomeAdmin({
               <tbody>
                 {monthCommissions.map((c) => (
                   <tr
-                    key={c.team_member_id}
+                    key={c.id}
                     className="border-b border-[var(--card-border)]/50"
                   >
                     <td className="py-3 pr-4 text-white font-medium">{c.nombre}</td>
                     <td className="py-3 pr-4 text-right text-[var(--muted)]">
-                      {c.comision_closer > 0 ? formatUSD(c.comision_closer) : "\u2014"}
+                      {c.at_comision_closer > 0 ? formatUSD(c.at_comision_closer) : "\u2014"}
                     </td>
                     <td className="py-3 pr-4 text-right text-[var(--muted)]">
-                      {c.comision_setter > 0 ? formatUSD(c.comision_setter) : "\u2014"}
+                      {c.at_comision_setter > 0 ? formatUSD(c.at_comision_setter) : "\u2014"}
                     </td>
                     <td className="py-3 pr-4 text-right text-[var(--muted)]">
-                      {c.comision_cobranzas > 0 ? formatUSD(c.comision_cobranzas) : "\u2014"}
+                      {c.at_comision_cobranzas > 0 ? formatUSD(c.at_comision_cobranzas) : "\u2014"}
                     </td>
                     <td className="py-3 text-right text-white font-bold">
-                      {formatUSD(c.comision_total)}
+                      {formatUSD(c.at_comision_total)}
                     </td>
                   </tr>
                 ))}

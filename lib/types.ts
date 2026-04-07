@@ -374,6 +374,15 @@ export interface Commission {
   comision_total: number;
 }
 
+export interface AtCommission {
+  id: string;
+  nombre: string;
+  at_comision_closer: number;
+  at_comision_setter: number;
+  at_comision_cobranzas: number;
+  at_comision_total: number;
+}
+
 export interface CloserKPI {
   team_member_id: string;
   nombre: string;
