@@ -173,12 +173,16 @@ export default function HomeAdmin({
     return ((curr - previous) / previous) * 100;
   }
 
+  // Detect if viewing the current fiscal month (use Airtable values) or a past month (use DB values)
+  const currentFiscalLabel = getFiscalMonth(new Date());
+  const isCurrentMonth = currentLabel === currentFiscalLabel;
+
   const facturacion = current?.facturacion ?? 0;
-  // Use Airtable's at_cash_7_7 as source of truth for Cash Collected
-  const cashTotal = atCashCollected;
+  // Use Airtable values for current month, DB values for past months
+  const cashTotal = isCurrentMonth ? atCashCollected : (current?.cash_total ?? 0);
   const cashVentasNuevas = current?.cash_ventas_nuevas ?? 0;
   const cashRenovaciones = current?.cash_renovaciones ?? 0;
-  const cashCuotas = atCuotas;
+  const cashCuotas = isCurrentMonth ? atCuotas : (current?.cash_cuotas ?? 0);
   const ventasNuevasCount = current?.ventas_nuevas_count ?? 0;
   const renovacionesCount = current?.renovaciones_count ?? 0;
   const refunds = current?.refunds ?? 0;
