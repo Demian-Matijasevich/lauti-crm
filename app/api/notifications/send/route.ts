@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
-import webpush from "web-push";
+let webpushReady = false;
 
-if (process.env.VAPID_EMAIL && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
-  webpush.setVapidDetails(
-    process.env.VAPID_EMAIL,
-    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
-    process.env.VAPID_PRIVATE_KEY
-  );
+function getWebPush() {
+  // Lazy require to avoid module-level evaluation during build
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const webpush = require("web-push");
+  if (!webpushReady && process.env.VAPID_EMAIL && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+      process.env.VAPID_EMAIL,
+      process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    webpushReady = true;
+  }
+  return webpush;
 }
 
 // Notification event types and their recipients
@@ -90,7 +97,7 @@ export async function POST(request: NextRequest) {
     const results = await Promise.allSettled(
       recipients.map(async (member) => {
         try {
-          await webpush.sendNotification(
+          await getWebPush().sendNotification(
             member.push_subscription as unknown as webpush.PushSubscription,
             payload
           );
