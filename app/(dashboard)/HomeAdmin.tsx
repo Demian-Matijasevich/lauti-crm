@@ -109,12 +109,42 @@ export default function HomeAdmin({
     });
   }, [payments, selectedMonth]);
 
-  // Commissions for selected fiscal month
+  // Team members that earn commissions
+  const COMISION_TEAM = ["Iván", "Joaquín", "Jorge", "Mel"];
+
+  // Commissions for selected fiscal month — only show the 4 team members
   const monthCommissions = useMemo(() => {
-    return commissions
-      .filter((c) => c.mes_fiscal === currentLabel && c.comision_total > 0)
+    const filtered = commissions
+      .filter((c) => c.mes_fiscal === currentLabel && COMISION_TEAM.includes(c.nombre))
       .sort((a, b) => b.comision_total - a.comision_total);
-  }, [commissions, currentLabel]);
+
+    // Mel gets 10% of ALL cuotas + renovaciones, not just ones she collected
+    const melIdx = filtered.findIndex((c) => c.nombre === "Mel");
+    if (melIdx >= 0) {
+      const melComCobranzas = (cashCuotas + (cashRenovaciones || 0)) * 0.10;
+      filtered[melIdx] = {
+        ...filtered[melIdx],
+        comision_cobranzas: melComCobranzas,
+        comision_total: melComCobranzas,
+        comision_closer: 0,
+        comision_setter: 0,
+      };
+    } else if (cashCuotas > 0 || (cashRenovaciones || 0) > 0) {
+      // Mel might not appear in v_commissions if she has no payments — add her manually
+      const melComCobranzas = (cashCuotas + (cashRenovaciones || 0)) * 0.10;
+      filtered.push({
+        team_member_id: "",
+        nombre: "Mel",
+        mes_fiscal: currentLabel,
+        comision_closer: 0,
+        comision_setter: 0,
+        comision_cobranzas: melComCobranzas,
+        comision_total: melComCobranzas,
+      });
+    }
+
+    return filtered.sort((a, b) => b.comision_total - a.comision_total);
+  }, [commissions, currentLabel, cashCuotas, cashRenovaciones]);
 
   const commissionTotals = useMemo(() => {
     return monthCommissions.reduce(
