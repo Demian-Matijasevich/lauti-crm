@@ -621,7 +621,15 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
               </div>
             </div>
 
-            <div className="flex gap-2 pt-2">
+            <div className="flex flex-wrap gap-2 pt-2">
+              <a
+                href={`/llamadas/${lead.id}/estado-cuenta`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium bg-[var(--purple)]/15 border border-[var(--purple)]/30 text-[var(--purple-light)] hover:bg-[var(--purple)]/25 px-4 py-2 rounded-lg transition-colors"
+              >
+                Estado de Cuenta
+              </a>
               <a
                 href="/form/llamada"
                 className="text-sm font-medium border border-[var(--card-border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--muted)] px-4 py-2 rounded-lg transition-colors"

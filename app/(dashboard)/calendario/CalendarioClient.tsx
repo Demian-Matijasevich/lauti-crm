@@ -1,13 +1,52 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import type { Lead, Payment, RenewalQueueRow } from "@/lib/types";
 import { formatUSD } from "@/lib/format";
 
+// Exported types for the server component
+export interface CalendarLead {
+  id: string;
+  nombre: string;
+  fecha_llamada: string;
+  estado: string;
+  instagram: string | null;
+  telefono: string | null;
+  programa_pitcheado: string | null;
+  link_llamada: string | null;
+  closer_nombre: string | null;
+}
+
+export interface CalendarPayment {
+  id: string;
+  client_id: string | null;
+  lead_id: string | null;
+  numero_cuota: number;
+  monto_usd: number;
+  fecha_vencimiento: string;
+  estado: string;
+  nombre: string | null;
+  instagram: string | null;
+  telefono: string | null;
+}
+
+export interface CalendarRenewal {
+  id: string;
+  nombre: string;
+  programa: string;
+  fecha_onboarding: string;
+  total_dias_programa: number;
+  fecha_vencimiento: string;
+  dias_restantes: number;
+  estado_contacto: string;
+  health_score: number;
+  semaforo: string;
+  telefono: string | null;
+}
+
 interface Props {
-  leads: Pick<Lead, "id" | "nombre" | "fecha_llamada" | "estado">[];
-  payments: Pick<Payment, "id" | "client_id" | "lead_id" | "numero_cuota" | "monto_usd" | "fecha_vencimiento" | "estado">[];
-  renewals: RenewalQueueRow[];
+  leads: CalendarLead[];
+  payments: CalendarPayment[];
+  renewals: CalendarRenewal[];
 }
 
 const DAYS_HEADER = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
@@ -16,12 +55,12 @@ interface DayData {
   date: string; // YYYY-MM-DD
   day: number;
   isCurrentMonth: boolean;
-  llamadas: Props["leads"];
-  cuotas: Props["payments"];
-  renovaciones: Props["renewals"];
+  llamadas: CalendarLead[];
+  cuotas: CalendarPayment[];
+  renovaciones: CalendarRenewal[];
 }
 
-function getMonthGrid(year: number, month: number, leads: Props["leads"], payments: Props["payments"], renewals: Props["renewals"]): DayData[] {
+function getMonthGrid(year: number, month: number, leads: CalendarLead[], payments: CalendarPayment[], renewals: CalendarRenewal[]): DayData[] {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
 
@@ -55,7 +94,7 @@ function getMonthGrid(year: number, month: number, leads: Props["leads"], paymen
   return days;
 }
 
-function makeDayData(date: Date, isCurrentMonth: boolean, leads: Props["leads"], payments: Props["payments"], renewals: Props["renewals"]): DayData {
+function makeDayData(date: Date, isCurrentMonth: boolean, leads: CalendarLead[], payments: CalendarPayment[], renewals: CalendarRenewal[]): DayData {
   const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
   return {
     date: dateStr,
@@ -65,6 +104,39 @@ function makeDayData(date: Date, isCurrentMonth: boolean, leads: Props["leads"],
     cuotas: payments.filter((p) => p.fecha_vencimiento === dateStr),
     renovaciones: renewals.filter((r) => r.fecha_vencimiento === dateStr),
   };
+}
+
+function igUrl(handle: string | null): string | null {
+  if (!handle) return null;
+  const clean = handle.replace(/^@/, "");
+  return `https://instagram.com/${clean}`;
+}
+
+function ContactLinks({ instagram, telefono }: { instagram: string | null; telefono: string | null }) {
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      {instagram && (
+        <a
+          href={igUrl(instagram)!}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[11px] text-pink-400 hover:text-pink-300 underline underline-offset-2"
+        >
+          @{instagram.replace(/^@/, "")}
+        </a>
+      )}
+      {telefono && (
+        <a
+          href={`tel:${telefono}`}
+          onClick={(e) => e.stopPropagation()}
+          className="text-[11px] text-blue-400 hover:text-blue-300 underline underline-offset-2"
+        >
+          {telefono}
+        </a>
+      )}
+    </div>
+  );
 }
 
 export default function CalendarioClient({ leads, payments, renewals }: Props) {
@@ -192,11 +264,29 @@ export default function CalendarioClient({ leads, payments, renewals }: Props) {
           {selectedDayData.llamadas.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-blue-400 uppercase mb-2">Llamadas programadas ({selectedDayData.llamadas.length})</h4>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {selectedDayData.llamadas.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between bg-blue-500/10 border border-blue-500/20 rounded-lg px-3 py-2">
-                    <span className="text-sm text-white">{l.nombre}</span>
-                    <span className="text-xs text-[var(--muted)]">{l.estado}</span>
+                  <div key={l.id} className="bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-white">{l.nombre}</span>
+                      <span className="text-xs text-[var(--muted)] capitalize">{l.estado?.replace(/_/g, " ")}</span>
+                    </div>
+                    <ContactLinks instagram={l.instagram} telefono={l.telefono} />
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-[11px] text-[var(--muted)]">
+                      {l.closer_nombre && <span>Closer: <span className="text-white">{l.closer_nombre}</span></span>}
+                      {l.programa_pitcheado && <span>Programa: <span className="text-white">{l.programa_pitcheado.replace(/_/g, " ")}</span></span>}
+                      {l.link_llamada && (
+                        <a
+                          href={l.link_llamada}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                        >
+                          Link llamada
+                        </a>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -207,11 +297,26 @@ export default function CalendarioClient({ leads, payments, renewals }: Props) {
           {selectedDayData.cuotas.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-yellow-400 uppercase mb-2">Cuotas por vencer ({selectedDayData.cuotas.length})</h4>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {selectedDayData.cuotas.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-3 py-2">
-                    <span className="text-sm text-white">Cuota #{p.numero_cuota}</span>
-                    <span className="text-sm font-medium text-yellow-400">{formatUSD(p.monto_usd)}</span>
+                  <div key={p.id} className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg px-4 py-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium text-white">{p.nombre || "Sin nombre"}</span>
+                      <span className="text-sm font-semibold text-yellow-400">{formatUSD(p.monto_usd)}</span>
+                    </div>
+                    <div className="text-[11px] text-[var(--muted)] mb-1">
+                      Cuota #{p.numero_cuota}
+                    </div>
+                    <ContactLinks instagram={p.instagram} telefono={p.telefono} />
+                    <div className="mt-2">
+                      <a
+                        href="/cobranzas"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-[11px] font-medium text-yellow-400 hover:text-yellow-300 underline underline-offset-2"
+                      >
+                        Ir a cobranzas
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -222,20 +327,36 @@ export default function CalendarioClient({ leads, payments, renewals }: Props) {
           {selectedDayData.renovaciones.length > 0 && (
             <div>
               <h4 className="text-xs font-semibold text-green-400 uppercase mb-2">Renovaciones ({selectedDayData.renovaciones.length})</h4>
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {selectedDayData.renovaciones.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-2">
-                    <div>
-                      <span className="text-sm text-white">{r.nombre}</span>
-                      <span className="text-xs text-[var(--muted)] ml-2">{r.programa}</span>
+                  <div key={r.id} className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3">
+                    <div className="flex items-center justify-between mb-1">
+                      <div>
+                        <span className="text-sm font-medium text-white">{r.nombre}</span>
+                        <span className="text-xs text-[var(--muted)] ml-2">{r.programa?.replace(/_/g, " ")}</span>
+                      </div>
+                      <span className={`text-xs font-medium ${
+                        r.semaforo === "vencido" ? "text-[var(--red)]" :
+                        r.semaforo === "urgente" ? "text-[var(--yellow)]" :
+                        "text-[var(--green)]"
+                      }`}>
+                        {r.dias_restantes}d restantes
+                      </span>
                     </div>
-                    <span className={`text-xs font-medium ${
-                      r.semaforo === "vencido" ? "text-[var(--red)]" :
-                      r.semaforo === "urgente" ? "text-[var(--yellow)]" :
-                      "text-[var(--green)]"
-                    }`}>
-                      {r.dias_restantes}d restantes
-                    </span>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] text-[var(--muted)]">
+                      <span>Health: <span className={`font-medium ${r.health_score >= 80 ? "text-green-400" : r.health_score >= 50 ? "text-yellow-400" : "text-red-400"}`}>{r.health_score}</span></span>
+                    </div>
+                    {r.telefono && (
+                      <div className="mt-1">
+                        <a
+                          href={`tel:${r.telefono}`}
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-[11px] text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                        >
+                          {r.telefono}
+                        </a>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
