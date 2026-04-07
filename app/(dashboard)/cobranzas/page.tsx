@@ -1,7 +1,13 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { fetchCobranzasQueue } from "@/lib/queries/cobranzas";
+import {
+  fetchCobranzasQueue,
+  fetchFiscalPendingPayments,
+  fetchOverduePayments,
+  fetchFiscalPaidPayments,
+} from "@/lib/queries/cobranzas";
 import { fetchAgentTasks } from "@/lib/queries/agent-tasks";
+import { getFiscalStart, getFiscalEnd, toDateString } from "@/lib/date-utils";
 import CobranzasClient from "./CobranzasClient";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +19,14 @@ export default async function CobranzasPage() {
     redirect("/");
   }
 
-  const [queue, allTasks] = await Promise.all([
-    fetchCobranzasQueue(),
-    fetchAgentTasks(),
-  ]);
+  const [queue, allTasks, fiscalPending, overduePayments, fiscalPaid] =
+    await Promise.all([
+      fetchCobranzasQueue(),
+      fetchAgentTasks(),
+      fetchFiscalPendingPayments(),
+      fetchOverduePayments(),
+      fetchFiscalPaidPayments(),
+    ]);
 
   // Strip agent data for non-agent-visible users (Task 3)
   const sanitizedQueue = session.can_see_agent
@@ -39,6 +49,20 @@ export default async function CobranzasPage() {
         contexto: {} as Record<string, unknown>,
       }));
 
+  // Merge fiscal pending + overdue (deduped by id)
+  const seenIds = new Set<string>();
+  const allFiscalItems = [...overduePayments, ...fiscalPending].filter((item) => {
+    if (seenIds.has(item.id)) return false;
+    seenIds.add(item.id);
+    return true;
+  });
+
+  const fiscalStart = toDateString(getFiscalStart());
+  const fiscalEnd = toDateString(getFiscalEnd());
+
+  const totalPorCobrar =
+    allFiscalItems.reduce((sum, i) => sum + i.monto_usd, 0);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -46,6 +70,11 @@ export default async function CobranzasPage() {
       </div>
       <CobranzasClient
         initialQueue={sanitizedQueue}
+        fiscalItems={allFiscalItems}
+        fiscalPaid={fiscalPaid}
+        totalPorCobrar={totalPorCobrar}
+        fiscalStart={fiscalStart}
+        fiscalEnd={fiscalEnd}
         allTasks={sanitizedTasks}
         session={session}
       />

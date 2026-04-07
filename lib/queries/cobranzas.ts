@@ -1,4 +1,5 @@
 import { createServerClient } from "@/lib/supabase-server";
+import { getFiscalStart, getFiscalEnd, toDateString } from "@/lib/date-utils";
 import type {
   Payment,
   AgentTask,
@@ -18,6 +19,7 @@ export interface CobranzasQueueItem {
   client_canal: string | null;
   monto_usd: number;
   dias_vencido: number; // negative = overdue, positive = days remaining
+  fecha_vencimiento: string | null;
   semaforo: "vencido" | "urgente" | "proximo" | "ok";
   estado_contacto: string | null;
   // Source-specific
@@ -75,6 +77,7 @@ async function fetchPendingPayments(): Promise<CobranzasQueueItem[]> {
       client_canal: p.client?.canal_contacto ?? null,
       monto_usd: p.monto_usd ?? 0,
       dias_vencido: diasDiff,
+      fecha_vencimiento: p.fecha_vencimiento ?? null,
       semaforo,
       estado_contacto: p.client?.estado_contacto ?? null,
       payment_id: p.id,
@@ -111,6 +114,7 @@ async function fetchRenewalQueue(): Promise<CobranzasQueueItem[]> {
     client_canal: null,
     monto_usd: 0,
     dias_vencido: r.dias_restantes,
+    fecha_vencimiento: null,
     semaforo: r.semaforo as CobranzasQueueItem["semaforo"],
     estado_contacto: r.estado_contacto,
     payment_id: null,
@@ -174,6 +178,7 @@ async function fetchActiveAgentTasks(): Promise<CobranzasQueueItem[]> {
       client_canal: t.client?.canal_contacto ?? t.canal,
       monto_usd: (t.contexto as any)?.monto_usd ?? 0,
       dias_vencido: (t.contexto as any)?.dias_vencido ?? 0,
+      fecha_vencimiento: null,
       semaforo: t.prioridad <= 2 ? "vencido" as const : t.prioridad <= 3 ? "urgente" as const : "ok" as const,
       estado_contacto: t.client?.estado_contacto ?? null,
       payment_id: t.payment_id,
@@ -231,6 +236,145 @@ export async function fetchCobranzasQueue(): Promise<CobranzasQueueItem[]> {
   });
 
   return combined;
+}
+
+/** Fetch ALL pendiente payments in the current fiscal period (8th to 7th) */
+export async function fetchFiscalPendingPayments(): Promise<CobranzasQueueItem[]> {
+  const supabase = createServerClient();
+  const start = toDateString(getFiscalStart());
+  const end = toDateString(getFiscalEnd());
+
+  const { data, error } = await supabase
+    .from("payments")
+    .select(`
+      id, monto_usd, fecha_vencimiento, estado, numero_cuota,
+      client:clients(id, nombre, telefono, programa, estado_contacto, canal_contacto),
+      lead:leads(id, nombre, telefono)
+    `)
+    .eq("estado", "pendiente")
+    .gte("fecha_vencimiento", start)
+    .lte("fecha_vencimiento", end)
+    .order("fecha_vencimiento", { ascending: true });
+
+  if (error) throw new Error(`fetchFiscalPendingPayments: ${error.message}`);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return (data ?? []).map((p: any) => {
+    const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento + "T00:00:00") : today;
+    const diasDiff = Math.floor(
+      (venc.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const nombre = p.client?.nombre ?? p.lead?.nombre ?? "Sin nombre";
+    const telefono = p.client?.telefono ?? p.lead?.telefono ?? null;
+
+    let semaforo: CobranzasQueueItem["semaforo"];
+    if (diasDiff < 0) semaforo = "vencido";
+    else if (diasDiff <= 7) semaforo = "urgente";
+    else if (diasDiff <= 15) semaforo = "proximo";
+    else semaforo = "ok";
+
+    return {
+      id: `payment-${p.id}`,
+      tipo: "cuota" as const,
+      client_id: p.client?.id ?? null,
+      client_nombre: nombre,
+      client_telefono: telefono,
+      client_canal: p.client?.canal_contacto ?? null,
+      monto_usd: p.monto_usd ?? 0,
+      dias_vencido: diasDiff,
+      fecha_vencimiento: p.fecha_vencimiento,
+      semaforo,
+      estado_contacto: p.client?.estado_contacto ?? null,
+      payment_id: p.id,
+      payment_estado: p.estado,
+      numero_cuota: p.numero_cuota,
+      task_id: null,
+      task_tipo: null,
+      task_estado: null,
+      task_asignado_a: null,
+      task_prioridad: diasDiff < 0 ? 1 : diasDiff <= 3 ? 2 : 3,
+      programa: p.client?.programa ?? null,
+      last_log: null,
+    };
+  });
+}
+
+/** Fetch overdue payments from ANY period (vencimiento < today, still pendiente) */
+export async function fetchOverduePayments(): Promise<CobranzasQueueItem[]> {
+  const supabase = createServerClient();
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = toDateString(today);
+
+  const { data, error } = await supabase
+    .from("payments")
+    .select(`
+      id, monto_usd, fecha_vencimiento, estado, numero_cuota,
+      client:clients(id, nombre, telefono, programa, estado_contacto, canal_contacto),
+      lead:leads(id, nombre, telefono)
+    `)
+    .eq("estado", "pendiente")
+    .lt("fecha_vencimiento", todayStr)
+    .order("fecha_vencimiento", { ascending: true });
+
+  if (error) throw new Error(`fetchOverduePayments: ${error.message}`);
+
+  return (data ?? []).map((p: any) => {
+    const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento + "T00:00:00") : today;
+    const diasDiff = Math.floor(
+      (venc.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const nombre = p.client?.nombre ?? p.lead?.nombre ?? "Sin nombre";
+    const telefono = p.client?.telefono ?? p.lead?.telefono ?? null;
+
+    return {
+      id: `payment-${p.id}`,
+      tipo: "cuota" as const,
+      client_id: p.client?.id ?? null,
+      client_nombre: nombre,
+      client_telefono: telefono,
+      client_canal: p.client?.canal_contacto ?? null,
+      monto_usd: p.monto_usd ?? 0,
+      dias_vencido: diasDiff,
+      fecha_vencimiento: p.fecha_vencimiento,
+      semaforo: "vencido" as const,
+      estado_contacto: p.client?.estado_contacto ?? null,
+      payment_id: p.id,
+      payment_estado: p.estado,
+      numero_cuota: p.numero_cuota,
+      task_id: null,
+      task_tipo: null,
+      task_estado: null,
+      task_asignado_a: null,
+      task_prioridad: 1,
+      programa: p.client?.programa ?? null,
+      last_log: null,
+    };
+  });
+}
+
+/** Fetch pagado payments in the current fiscal period (for the "cobrado" KPI) */
+export async function fetchFiscalPaidPayments(): Promise<{ total: number; count: number }> {
+  const supabase = createServerClient();
+  const start = toDateString(getFiscalStart());
+  const end = toDateString(getFiscalEnd());
+
+  const { data, error } = await supabase
+    .from("payments")
+    .select("monto_usd")
+    .eq("estado", "pagado")
+    .gte("fecha_pago", start)
+    .lte("fecha_pago", end);
+
+  if (error) throw new Error(`fetchFiscalPaidPayments: ${error.message}`);
+
+  const items = data ?? [];
+  return {
+    total: items.reduce((sum: number, p: any) => sum + (p.monto_usd ?? 0), 0),
+    count: items.length,
+  };
 }
 
 /** Mark a payment as paid */

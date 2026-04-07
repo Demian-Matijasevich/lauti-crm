@@ -6,6 +6,11 @@ import type { CobranzasQueueItem } from "@/lib/queries/cobranzas";
 
 interface Props {
   initialQueue: CobranzasQueueItem[];
+  fiscalItems: CobranzasQueueItem[];
+  fiscalPaid: { total: number; count: number };
+  totalPorCobrar: number;
+  fiscalStart: string;
+  fiscalEnd: string;
   allTasks: AgentTask[];
   session: AuthSession;
 }
@@ -13,8 +18,62 @@ interface Props {
 type FilterTipo = "todos" | "cuotas" | "renovaciones" | "deudores";
 type FilterSemaforo = "todos" | "vencido" | "urgente" | "proximo";
 
+interface WeekBucket {
+  label: string;
+  start: Date;
+  end: Date;
+  items: CobranzasQueueItem[];
+  total: number;
+}
+
+function getWeekBuckets(fiscalStart: string, fiscalEnd: string, items: CobranzasQueueItem[]): WeekBucket[] {
+  const start = new Date(fiscalStart + "T00:00:00");
+  const end = new Date(fiscalEnd + "T00:00:00");
+
+  const weeks: WeekBucket[] = [];
+  let weekStart = new Date(start);
+  let weekNum = 1;
+
+  while (weekStart <= end) {
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekEnd.getDate() + 6);
+    if (weekEnd > end) weekEnd.setTime(end.getTime());
+
+    const sLabel = `${weekStart.getDate()}/${weekStart.getMonth() + 1}`;
+    const eLabel = `${weekEnd.getDate()}/${weekEnd.getMonth() + 1}`;
+
+    const wStart = new Date(weekStart);
+    const wEnd = new Date(weekEnd);
+
+    const weekItems = items.filter((item) => {
+      if (!item.fecha_vencimiento) return false;
+      const d = new Date(item.fecha_vencimiento + "T00:00:00");
+      return d >= wStart && d <= wEnd;
+    });
+
+    weeks.push({
+      label: `Semana ${weekNum} (${sLabel} - ${eLabel})`,
+      start: wStart,
+      end: wEnd,
+      items: weekItems,
+      total: weekItems.reduce((sum, i) => sum + i.monto_usd, 0),
+    });
+
+    weekStart = new Date(weekEnd);
+    weekStart.setDate(weekStart.getDate() + 1);
+    weekNum++;
+  }
+
+  return weeks;
+}
+
 export default function CobranzasClient({
   initialQueue,
+  fiscalItems,
+  fiscalPaid,
+  totalPorCobrar,
+  fiscalStart,
+  fiscalEnd,
   allTasks,
   session,
 }: Props) {
@@ -23,6 +82,7 @@ export default function CobranzasClient({
   const [filterSemaforo, setFilterSemaforo] = useState<FilterSemaforo>("todos");
   const [search, setSearch] = useState("");
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
 
   const canSeeAgent = session.can_see_agent;
 
@@ -58,17 +118,48 @@ export default function CobranzasClient({
   }, [queue, filterTipo, filterSemaforo, search]);
 
   // --- KPI Summary ---
-  const totalVencidas = queue.filter((i) => i.semaforo === "vencido").length;
-  const totalUrgentes = queue.filter((i) => i.semaforo === "urgente").length;
-  const montoVencido = queue
+  const totalVencidas = fiscalItems.filter((i) => i.semaforo === "vencido").length;
+  const montoVencido = fiscalItems
     .filter((i) => i.semaforo === "vencido")
     .reduce((sum, i) => sum + i.monto_usd, 0);
 
-  function getSemaforoEmoji(s: string) {
-    if (s === "vencido") return "\u{1F534}";
-    if (s === "urgente") return "\u{1F7E1}";
-    if (s === "proximo") return "\u{1F7E0}";
-    return "\u{1F7E2}";
+  const cobradoTotal = fiscalPaid.total;
+  const grandTotal = totalPorCobrar + cobradoTotal;
+  const tasaCobro = grandTotal > 0 ? (cobradoTotal / grandTotal) * 100 : 0;
+
+  // Weekly breakdown
+  const weeks = useMemo(
+    () => getWeekBuckets(fiscalStart, fiscalEnd, fiscalItems),
+    [fiscalStart, fiscalEnd, fiscalItems]
+  );
+
+  function toggleWeek(idx: number) {
+    setExpandedWeeks((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  }
+
+  function getSemaforoColor(s: string) {
+    if (s === "vencido") return "text-[var(--red)]";
+    if (s === "urgente") return "text-[var(--yellow)]";
+    if (s === "proximo") return "text-orange-400";
+    return "text-[var(--green)]";
+  }
+
+  function getSemaforoBg(s: string) {
+    if (s === "vencido") return "bg-red-500/10";
+    if (s === "urgente") return "bg-yellow-500/10";
+    return "";
+  }
+
+  function getSemaforoDot(s: string) {
+    if (s === "vencido") return "bg-[var(--red)]";
+    if (s === "urgente") return "bg-[var(--yellow)]";
+    if (s === "proximo") return "bg-orange-400";
+    return "bg-[var(--green)]";
   }
 
   function getTipoLabel(item: CobranzasQueueItem) {
@@ -142,29 +233,101 @@ export default function CobranzasClient({
 
   return (
     <div className="space-y-6">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-          <p className="text-sm text-red-600 font-medium">Vencidas</p>
-          <p className="text-2xl font-bold text-red-800">{totalVencidas}</p>
-          <p className="text-sm text-red-500">
-            ${montoVencido.toLocaleString()} USD
-          </p>
+      {/* KPI Cards - Dark Theme */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--muted)] uppercase font-medium">Por cobrar este mes</p>
+          <p className="text-2xl font-bold text-white">${totalPorCobrar.toLocaleString()}</p>
+          <p className="text-xs text-[var(--muted)] mt-1">{fiscalItems.length} cuotas pendientes</p>
         </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-          <p className="text-sm text-yellow-600 font-medium">Urgentes</p>
-          <p className="text-2xl font-bold text-yellow-800">{totalUrgentes}</p>
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--muted)] uppercase font-medium">Cobrado este mes</p>
+          <p className="text-2xl font-bold text-[var(--green)]">${cobradoTotal.toLocaleString()}</p>
+          <p className="text-xs text-[var(--muted)] mt-1">{fiscalPaid.count} pagos recibidos</p>
         </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-sm text-blue-600 font-medium">Total en cola</p>
-          <p className="text-2xl font-bold text-blue-800">{queue.length}</p>
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--muted)] uppercase font-medium">Vencidas</p>
+          <p className="text-2xl font-bold text-[var(--red)]">{totalVencidas}</p>
+          <p className="text-xs text-[var(--red)]/70 mt-1">${montoVencido.toLocaleString()} USD</p>
+        </div>
+        <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
+          <p className="text-xs text-[var(--muted)] uppercase font-medium">Tasa de cobro</p>
+          <p className="text-2xl font-bold text-[var(--purple-light)]">{tasaCobro.toFixed(1)}%</p>
+          <div className="mt-2 bg-[var(--card-border)] rounded-full h-1.5">
+            <div
+              className="bg-[var(--purple)] h-1.5 rounded-full transition-all"
+              style={{ width: `${Math.min(tasaCobro, 100)}%` }}
+            />
+          </div>
         </div>
       </div>
 
-      {/* Agent Tasks Dashboard (Task 6) */}
-      <div className="bg-white rounded-xl border shadow-sm p-6 space-y-4">
+      {/* Weekly Breakdown */}
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Desglose semanal</h2>
+        <div className="space-y-2">
+          {weeks.map((week, idx) => {
+            const isExpanded = expandedWeeks.has(idx);
+            const weekVencidas = week.items.filter((i) => i.semaforo === "vencido").length;
+            return (
+              <div key={idx}>
+                <button
+                  onClick={() => toggleWeek(idx)}
+                  className="w-full flex items-center justify-between p-3 rounded-lg bg-[var(--background)] border border-[var(--card-border)] hover:border-[var(--purple)]/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-[var(--muted)] text-sm">{isExpanded ? "▾" : "▸"}</span>
+                    <span className="text-sm font-medium text-white">{week.label}</span>
+                    <span className="text-xs text-[var(--muted)]">
+                      {week.items.length} cuota{week.items.length !== 1 ? "s" : ""}
+                    </span>
+                    {weekVencidas > 0 && (
+                      <span className="text-xs px-1.5 py-0.5 bg-red-500/20 text-[var(--red)] rounded">
+                        {weekVencidas} vencida{weekVencidas !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-sm font-bold text-white">${week.total.toLocaleString()}</span>
+                </button>
+                {isExpanded && week.items.length > 0 && (
+                  <div className="mt-1 ml-6 space-y-1">
+                    {week.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`flex items-center justify-between p-2 rounded-lg text-sm ${getSemaforoBg(item.semaforo)}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${getSemaforoDot(item.semaforo)}`} />
+                          <span className="text-white font-medium">{item.client_nombre}</span>
+                          <span className="text-xs text-[var(--muted)]">{getTipoLabel(item)}</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className={`text-xs ${getSemaforoColor(item.semaforo)}`}>
+                            {getDiasLabel(item.dias_vencido)}
+                          </span>
+                          <span className="text-white font-medium">
+                            ${item.monto_usd.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {isExpanded && week.items.length === 0 && (
+                  <p className="mt-1 ml-6 text-xs text-[var(--muted)] py-2">
+                    Sin cuotas en esta semana
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Agent Tasks Dashboard */}
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Panel de Tareas</h2>
+          <h2 className="text-lg font-semibold text-white">Panel de Tareas</h2>
           {session.is_admin && (
             <button
               onClick={async () => {
@@ -179,7 +342,7 @@ export default function CobranzasClient({
                   window.location.reload();
                 }
               }}
-              className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              className="text-xs px-3 py-1.5 bg-[var(--purple)] text-white rounded-lg hover:bg-[var(--purple-dark)]"
             >
               Generar tareas
             </button>
@@ -193,31 +356,35 @@ export default function CobranzasClient({
               {
                 label: "Pendientes",
                 count: allTasks.filter((t) => t.estado === "pending").length,
-                color: "text-yellow-600 bg-yellow-50",
+                color: "text-[var(--yellow)]",
+                bgColor: "bg-yellow-500/10",
               },
               {
                 label: "En progreso",
                 count: allTasks.filter((t) => t.estado === "in_progress").length,
-                color: "text-blue-600 bg-blue-50",
+                color: "text-blue-400",
+                bgColor: "bg-blue-500/10",
               },
               {
                 label: "Completadas",
                 count: allTasks.filter((t) => t.estado === "done").length,
-                color: "text-green-600 bg-green-50",
+                color: "text-[var(--green)]",
+                bgColor: "bg-green-500/10",
               },
               {
                 label: "Fallidas",
                 count: allTasks.filter((t) => t.estado === "failed").length,
-                color: "text-red-600 bg-red-50",
+                color: "text-[var(--red)]",
+                bgColor: "bg-red-500/10",
               },
             ] as const
           ).map((stat) => (
             <div
               key={stat.label}
-              className={`rounded-lg p-3 ${stat.color}`}
+              className={`rounded-lg p-3 ${stat.bgColor}`}
             >
-              <p className="text-xs font-medium">{stat.label}</p>
-              <p className="text-xl font-bold">{stat.count}</p>
+              <p className={`text-xs font-medium ${stat.color}`}>{stat.label}</p>
+              <p className={`text-xl font-bold ${stat.color}`}>{stat.count}</p>
             </div>
           ))}
         </div>
@@ -246,10 +413,10 @@ export default function CobranzasClient({
             return (
               <div
                 key={t.tipo}
-                className="text-xs border rounded-lg px-2 py-1.5 flex justify-between items-center"
+                className="text-xs border border-[var(--card-border)] rounded-lg px-2 py-1.5 flex justify-between items-center"
               >
-                <span className="text-gray-600">{t.label}</span>
-                <span className="font-medium">
+                <span className="text-[var(--muted)]">{t.label}</span>
+                <span className="font-medium text-white">
                   {active}/{count}
                 </span>
               </div>
@@ -264,13 +431,13 @@ export default function CobranzasClient({
           const rate = total > 0 ? Math.round((done / total) * 100) : 0;
           return (
             <div className="flex items-center gap-3">
-              <div className="flex-1 bg-gray-100 rounded-full h-2">
+              <div className="flex-1 bg-[var(--card-border)] rounded-full h-2">
                 <div
-                  className="bg-green-500 h-2 rounded-full transition-all"
+                  className="bg-[var(--green)] h-2 rounded-full transition-all"
                   style={{ width: `${rate}%` }}
                 />
               </div>
-              <span className="text-sm font-medium text-gray-600">
+              <span className="text-sm font-medium text-[var(--muted)]">
                 {rate}% completado ({done}/{total})
               </span>
             </div>
@@ -280,7 +447,7 @@ export default function CobranzasClient({
         {/* Recent activity (agent log) -- only for can_see_agent */}
         {canSeeAgent && (
           <div className="mt-4">
-            <h3 className="text-sm font-medium text-gray-600 mb-2">
+            <h3 className="text-sm font-medium text-[var(--muted)] mb-2">
               Actividad reciente del agente
             </h3>
             <div className="space-y-1 max-h-40 overflow-y-auto">
@@ -290,23 +457,23 @@ export default function CobranzasClient({
                 .map((item) => (
                   <div
                     key={`log-${item.id}`}
-                    className="flex items-center gap-2 text-xs text-gray-500 py-1 border-b border-gray-50"
+                    className="flex items-center gap-2 text-xs text-[var(--muted)] py-1 border-b border-[var(--card-border)]"
                   >
-                    <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+                    <span className="px-1.5 py-0.5 bg-[var(--purple)]/20 text-[var(--purple-light)] rounded">
                       Bot
                     </span>
-                    <span className="font-medium text-gray-700">
+                    <span className="font-medium text-white">
                       {item.client_nombre}
                     </span>
                     <span>{item.last_log!.accion}</span>
-                    <span className="ml-auto text-gray-400">
+                    <span className="ml-auto text-[var(--muted)]">
                       {new Date(item.last_log!.created_at).toLocaleDateString("es-AR")}
                     </span>
                   </div>
                 ))}
               {queue.filter((item) => item.last_log && item.task_asignado_a === "agent")
                 .length === 0 && (
-                <p className="text-xs text-gray-400">
+                <p className="text-xs text-[var(--muted)]">
                   Sin actividad reciente del agente
                 </p>
               )}
@@ -322,12 +489,12 @@ export default function CobranzasClient({
           placeholder="Buscar cliente..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="border rounded-lg px-3 py-2 text-sm w-64"
+          className="border border-[var(--card-border)] bg-[var(--card-bg)] text-white rounded-lg px-3 py-2 text-sm w-64 focus:border-[var(--purple)] outline-none"
         />
         <select
           value={filterTipo}
           onChange={(e) => setFilterTipo(e.target.value as FilterTipo)}
-          className="border rounded-lg px-3 py-2 text-sm"
+          className="border border-[var(--card-border)] bg-[var(--card-bg)] text-white rounded-lg px-3 py-2 text-sm focus:border-[var(--purple)] outline-none"
         >
           <option value="todos">Todos los tipos</option>
           <option value="cuotas">Cuotas</option>
@@ -339,7 +506,7 @@ export default function CobranzasClient({
           onChange={(e) =>
             setFilterSemaforo(e.target.value as FilterSemaforo)
           }
-          className="border rounded-lg px-3 py-2 text-sm"
+          className="border border-[var(--card-border)] bg-[var(--card-bg)] text-white rounded-lg px-3 py-2 text-sm focus:border-[var(--purple)] outline-none"
         >
           <option value="todos">Todos los semaforos</option>
           <option value="vencido">Vencidas</option>
@@ -349,73 +516,70 @@ export default function CobranzasClient({
       </div>
 
       {/* Queue Table */}
-      <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+      <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-left">
-              <tr>
-                <th className="px-4 py-3 font-medium text-gray-600">Estado</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Cliente</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Tipo</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Monto</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Dias</th>
-                <th className="px-4 py-3 font-medium text-gray-600">Contacto</th>
+            <thead>
+              <tr className="border-b border-[var(--card-border)]">
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Estado</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Cliente</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Tipo</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Monto</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Vencimiento</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Dias</th>
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">Contacto</th>
                 {canSeeAgent && (
-                  <th className="px-4 py-3 font-medium text-gray-600">
+                  <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">
                     Agente
                   </th>
                 )}
-                <th className="px-4 py-3 font-medium text-gray-600">
+                <th className="px-4 py-3 text-left font-medium text-[var(--muted)]">
                   Acciones
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody>
               {filtered.map((item) => (
                 <tr
                   key={item.id}
-                  className={`hover:bg-gray-50 ${
-                    item.semaforo === "vencido" ? "bg-red-50/30" : ""
-                  }`}
+                  className={`border-b border-[var(--card-border)] hover:bg-white/5 ${getSemaforoBg(item.semaforo)}`}
                 >
                   <td className="px-4 py-3">
-                    <span title={item.semaforo}>
-                      {getSemaforoEmoji(item.semaforo)}
-                    </span>
+                    <span
+                      className={`inline-block w-2.5 h-2.5 rounded-full ${getSemaforoDot(item.semaforo)}`}
+                      title={item.semaforo}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <div>
-                      <p className="font-medium">{item.client_nombre}</p>
-                      <p className="text-xs text-gray-500">
+                      <p className="font-medium text-white">{item.client_nombre}</p>
+                      <p className="text-xs text-[var(--muted)]">
                         {item.programa ?? ""}
                       </p>
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-white/10 text-white">
                       {getTipoLabel(item)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-medium">
+                  <td className="px-4 py-3 font-medium text-white">
                     {item.monto_usd > 0
                       ? `$${item.monto_usd.toLocaleString()}`
                       : "-"}
                   </td>
+                  <td className="px-4 py-3 text-xs text-[var(--muted)]">
+                    {item.fecha_vencimiento ?? "-"}
+                  </td>
                   <td className="px-4 py-3">
                     <span
-                      className={`text-xs font-medium ${
-                        item.dias_vencido < 0
-                          ? "text-red-600"
-                          : item.dias_vencido <= 7
-                          ? "text-yellow-600"
-                          : "text-green-600"
-                      }`}
+                      className={`text-xs font-medium ${getSemaforoColor(item.semaforo)}`}
                     >
                       {getDiasLabel(item.dias_vencido)}
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className="text-xs">
+                    <span className="text-xs text-[var(--muted)]">
                       {item.estado_contacto ?? "por_contactar"}
                     </span>
                   </td>
@@ -423,21 +587,21 @@ export default function CobranzasClient({
                     <td className="px-4 py-3">
                       {item.task_asignado_a === "agent" ? (
                         <div>
-                          <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+                          <span className="text-xs px-1.5 py-0.5 bg-[var(--purple)]/20 text-[var(--purple-light)] rounded">
                             Bot
                           </span>
                           {item.last_log && (
-                            <p className="text-xs text-gray-500 mt-1 truncate max-w-[150px]">
+                            <p className="text-xs text-[var(--muted)] mt-1 truncate max-w-[150px]">
                               {item.last_log.accion}
                             </p>
                           )}
                         </div>
                       ) : item.task_asignado_a === "human" ? (
-                        <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded">
+                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">
                           Humano
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">-</span>
+                        <span className="text-xs text-[var(--muted)]">-</span>
                       )}
                     </td>
                   )}
@@ -446,7 +610,7 @@ export default function CobranzasClient({
                       <button
                         onClick={() => handleMarkContactado(item)}
                         disabled={activeAction === item.id}
-                        className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                        className="text-xs px-2 py-1 bg-blue-500/20 text-blue-400 rounded hover:bg-blue-500/30 disabled:opacity-50"
                         title="Marcar contactado"
                       >
                         Contactado
@@ -459,7 +623,7 @@ export default function CobranzasClient({
                               : `pay-${item.id}`
                           )
                         }
-                        className="text-xs px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+                        className="text-xs px-2 py-1 bg-green-500/20 text-[var(--green)] rounded hover:bg-green-500/30"
                         title="Marcar pagado"
                       >
                         Pagado
@@ -472,7 +636,7 @@ export default function CobranzasClient({
                               : `note-${item.id}`
                           )
                         }
-                        className="text-xs px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
+                        className="text-xs px-2 py-1 bg-white/10 text-[var(--muted)] rounded hover:bg-white/20"
                         title="Agregar nota"
                       >
                         Nota
@@ -481,7 +645,7 @@ export default function CobranzasClient({
                         <button
                           onClick={() => handleEscalar(item)}
                           disabled={activeAction === item.id}
-                          className="text-xs px-2 py-1 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
+                          className="text-xs px-2 py-1 bg-red-500/20 text-[var(--red)] rounded hover:bg-red-500/30 disabled:opacity-50"
                           title="Escalar prioridad"
                         >
                           Escalar
@@ -520,8 +684,8 @@ export default function CobranzasClient({
               {filtered.length === 0 && (
                 <tr>
                   <td
-                    colSpan={canSeeAgent ? 8 : 7}
-                    className="px-4 py-12 text-center text-gray-400"
+                    colSpan={canSeeAgent ? 9 : 8}
+                    className="px-4 py-12 text-center text-[var(--muted)]"
                   >
                     No hay items en la cola
                   </td>
@@ -583,20 +747,20 @@ function PaymentMiniForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg space-y-2"
+      className="mt-2 p-3 bg-green-500/10 border border-green-500/30 rounded-lg space-y-2"
     >
       <div className="flex gap-2">
         <input
           type="number"
           value={monto}
           onChange={(e) => setMonto(Number(e.target.value))}
-          className="border rounded px-2 py-1 text-sm w-24"
+          className="border border-[var(--card-border)] bg-[var(--background)] text-white rounded px-2 py-1 text-sm w-24 outline-none"
           placeholder="USD"
         />
         <select
           value={metodo}
           onChange={(e) => setMetodo(e.target.value)}
-          className="border rounded px-2 py-1 text-sm"
+          className="border border-[var(--card-border)] bg-[var(--background)] text-white rounded px-2 py-1 text-sm outline-none"
         >
           <option value="binance">Binance</option>
           <option value="transferencia">Transferencia</option>
@@ -610,7 +774,7 @@ function PaymentMiniForm({
       <select
         value={receptor}
         onChange={(e) => setReceptor(e.target.value)}
-        className="border rounded px-2 py-1 text-sm w-full"
+        className="border border-[var(--card-border)] bg-[var(--background)] text-white rounded px-2 py-1 text-sm w-full outline-none"
       >
         <option value="JUANMA">JUANMA</option>
         <option value="Cuenta pesos Lauti">Cuenta pesos Lauti</option>
@@ -625,14 +789,14 @@ function PaymentMiniForm({
         <button
           type="submit"
           disabled={loading}
-          className="text-xs px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+          className="text-xs px-3 py-1 bg-[var(--green)] text-black font-medium rounded hover:opacity-90 disabled:opacity-50"
         >
           {loading ? "..." : "Confirmar pago"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs px-3 py-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+          className="text-xs px-3 py-1 bg-white/10 text-[var(--muted)] rounded hover:bg-white/20"
         >
           Cancelar
         </button>
@@ -686,12 +850,12 @@ function NoteMiniForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="mt-2 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2"
+      className="mt-2 p-3 bg-white/5 border border-[var(--card-border)] rounded-lg space-y-2"
     >
       <textarea
         value={nota}
         onChange={(e) => setNota(e.target.value)}
-        className="border rounded px-2 py-1 text-sm w-full"
+        className="border border-[var(--card-border)] bg-[var(--background)] text-white rounded px-2 py-1 text-sm w-full outline-none"
         rows={2}
         placeholder="Agregar nota..."
       />
@@ -699,14 +863,14 @@ function NoteMiniForm({
         <button
           type="submit"
           disabled={loading || !nota.trim()}
-          className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+          className="text-xs px-3 py-1 bg-[var(--purple)] text-white rounded hover:bg-[var(--purple-dark)] disabled:opacity-50"
         >
           {loading ? "..." : "Guardar"}
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="text-xs px-3 py-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+          className="text-xs px-3 py-1 bg-white/10 text-[var(--muted)] rounded hover:bg-white/20"
         >
           Cancelar
         </button>
