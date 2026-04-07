@@ -5,7 +5,7 @@ import type { TeamMember, AuthSession, LeadScore, Payment } from "@/lib/types";
 import type { LeadWithTeam } from "@/lib/queries/leads";
 import { LEAD_ESTADOS_LABELS } from "@/lib/constants";
 import { formatUSD, formatDate } from "@/lib/format";
-import { getFiscalMonthOptions, getFiscalEnd } from "@/lib/date-utils";
+import { getFiscalMonthOptions, getFiscalEnd, parseLocalDate } from "@/lib/date-utils";
 import StatusBadge from "@/app/components/StatusBadge";
 
 interface Props {
@@ -96,7 +96,7 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
       // Month filter (7-7)
       if (monthFilter !== "todos" && lead.fecha_llamada) {
         const llamadaDate = new Date(lead.fecha_llamada);
-        const monthStart = new Date(monthFilter);
+        const monthStart = parseLocalDate(monthFilter);
         const monthEnd = getFiscalEnd(monthStart);
         if (llamadaDate < monthStart || llamadaDate > monthEnd) return false;
       }
@@ -116,7 +116,7 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
       totalTicket += lead.ticket_total;
       totalCash += audit.cashCollected;
       totalSaldo += audit.saldoPendiente;
-      totalAtCash += (lead.at_cash_total || 0);
+      totalAtCash += (lead.at_cash_7_7 || 0);
     }
     return { totalTicket, totalCash, totalSaldo, totalAtCash };
   }, [filtered, getAuditData]);
@@ -363,15 +363,15 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
                       {audit.receptor || "---"}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
-                      {(lead.at_cash_total || 0) > 0 ? (
-                        <span className="text-blue-400">{formatUSD(lead.at_cash_total || 0)}</span>
+                      {(lead.at_cash_7_7 || 0) > 0 ? (
+                        <span className="text-blue-400">{formatUSD(lead.at_cash_7_7 || 0)}</span>
                       ) : (
                         "---"
                       )}
                     </td>
                     <td className="px-4 py-3 text-right font-mono">
                       {(() => {
-                        const atTotal = lead.at_cash_total || 0;
+                        const atTotal = lead.at_cash_7_7 || 0;
                         if (atTotal === 0 && audit.cashCollected === 0) return "---";
                         const diff = audit.cashCollected - atTotal;
                         if (diff === 0) return <span className="text-green-400">OK</span>;
