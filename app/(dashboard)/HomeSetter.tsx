@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import KPICard from "@/app/components/KPICard";
 import { formatUSD } from "@/lib/format";
-import { getFiscalStart, getFiscalEnd } from "@/lib/date-utils";
+import { getFiscalStart, getFiscalEnd, parseLocalDate } from "@/lib/date-utils";
 import { COMMISSION_SETTER } from "@/lib/constants";
 import type { Lead, DailyReport } from "@/lib/types";
 
@@ -27,7 +27,7 @@ export default function HomeSetter({
   const agendasMes = useMemo(() => {
     return leads.filter((l) => {
       if (!l.fecha_agendado) return false;
-      const d = new Date(l.fecha_agendado);
+      const d = parseLocalDate(l.fecha_agendado);
       return d >= fiscalStart && d <= fiscalEnd;
     }).length;
   }, [leads, fiscalStart, fiscalEnd]);
@@ -36,7 +36,7 @@ export default function HomeSetter({
   const ventasChat = useMemo(() => {
     return reports
       .filter((r) => {
-        const d = new Date(r.fecha);
+        const d = parseLocalDate(r.fecha);
         return d >= fiscalStart && d <= fiscalEnd;
       })
       .reduce((count, r) => {
@@ -51,7 +51,7 @@ export default function HomeSetter({
   const comisiones = useMemo(() => {
     const cerrados = leads.filter((l) => {
       if (l.estado !== "cerrado" || !l.fecha_llamada) return false;
-      const d = new Date(l.fecha_llamada);
+      const d = parseLocalDate(l.fecha_llamada);
       return d >= fiscalStart && d <= fiscalEnd;
     });
     const cash = cerrados.reduce((s, l) => s + l.ticket_total, 0);
@@ -62,7 +62,7 @@ export default function HomeSetter({
   const conversaciones = useMemo(() => {
     return reports
       .filter((r) => {
-        const d = new Date(r.fecha);
+        const d = parseLocalDate(r.fecha);
         return d >= fiscalStart && d <= fiscalEnd;
       })
       .reduce((s, r) => s + r.conversaciones_iniciadas, 0);
@@ -162,7 +162,7 @@ export default function HomeSetter({
                     className="border-t border-[var(--card-border)]"
                   >
                     <td className="py-2 px-3 text-white">
-                      {new Date(r.fecha).toLocaleDateString("es-AR", {
+                      {parseLocalDate(r.fecha).toLocaleDateString("es-AR", {
                         day: "2-digit",
                         month: "short",
                       })}

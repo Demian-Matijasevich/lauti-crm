@@ -9,6 +9,7 @@ import type { Client } from "@/lib/types";
 import { healthToSemaforo } from "@/lib/types";
 import { PROGRAMS, CLIENT_ESTADOS_LABELS } from "@/lib/constants";
 import { daysUntil } from "@/lib/format";
+import { parseLocalDate } from "@/lib/date-utils";
 
 interface Props {
   clients: Client[];
@@ -89,7 +90,7 @@ export default function ClientesClient({ clients }: Props) {
       render: (row: Record<string, unknown>) => {
         const c = row as unknown as Client;
         if (!c.fecha_onboarding) return <span className="text-[var(--muted)]">---</span>;
-        const offboarding = new Date(c.fecha_onboarding);
+        const offboarding = parseLocalDate(c.fecha_onboarding);
         offboarding.setDate(offboarding.getDate() + c.total_dias_programa);
         const days = daysUntil(offboarding.toISOString().split("T")[0]);
         if (days === null) return <span className="text-[var(--muted)]">---</span>;

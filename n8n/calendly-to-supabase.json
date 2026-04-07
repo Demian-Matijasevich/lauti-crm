@@ -1,0 +1,131 @@
+{
+  "name": "Calendly → Supabase (Lauti CRM)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "calendly-webhook",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Calendly Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "allIncomingItems",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "event-created",
+              "leftValue": "={{ $json.event }}",
+              "rightValue": "invitee.created",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "filter-created",
+      "name": "Filter: invitee.created",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Extract Calendly event data\nconst payload = $input.item.json.payload;\nconst invitee = payload;\nconst event = payload.scheduled_event || {};\nconst questions = payload.questions_and_answers || [];\n\n// Map Calendly event type to our closer assignment\nconst eventName = event.name || '';\nconst isConsultoria = eventName.toLowerCase().includes('consultoria');\nconst isTelefonoRojo = eventName.toLowerCase().includes('telefono rojo');\n\n// Extract question answers\nfunction getAnswer(q, keyword) {\n  const found = questions.find(qa => qa.question && qa.question.toLowerCase().includes(keyword.toLowerCase()));\n  return found ? found.answer : null;\n}\n\nconst nombre = invitee.name || '';\nconst email = invitee.email || '';\n\n// Build lead object\nconst lead = {\n  nombre: nombre,\n  email: email,\n  telefono: getAnswer(questions, 'telefono') || getAnswer(questions, 'whatsapp') || null,\n  instagram: getAnswer(questions, 'instagram') || null,\n  evento_calendly: eventName,\n  calendly_event_id: event.uri ? event.uri.split('/').pop() : null,\n  fecha_agendado: new Date().toISOString(),\n  fecha_llamada: event.start_time || null,\n  estado: 'pendiente',\n  fuente: 'otro',\n  // Ivan is the closer for these calendars\n  closer_id: '9ddbc3a1-6a98-435e-baa1-bfeb23172317',\n  // Extract setter from questions if available\n  contexto_setter: getAnswer(questions, 'contexto') || getAnswer(questions, 'mensaje') || null,\n  experiencia_ecommerce: getAnswer(questions, 'experiencia') || null,\n  seguridad_inversion: getAnswer(questions, 'seguro') || null,\n  tipo_productos: getAnswer(questions, 'producto') || null,\n  compromiso_asistencia: getAnswer(questions, 'compromet') || null,\n  dispuesto_invertir: getAnswer(questions, 'invertir') || getAnswer(questions, 'dispuest') || null,\n  decisor: getAnswer(questions, 'decision') || getAnswer(questions, 'socio') || null,\n};\n\nreturn { json: lead };"
+      },
+      "id": "transform",
+      "name": "Transform to Lead",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://mhistwmrnkozkicwvwjx.supabase.co/rest/v1/leads",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "supabase-insert",
+      "name": "Insert Lead in Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Calendly Webhook": {
+      "main": [
+        [
+          { "node": "Respond OK", "type": "main", "index": 0 },
+          { "node": "Filter: invitee.created", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Filter: invitee.created": {
+      "main": [
+        [{ "node": "Transform to Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Transform to Lead": {
+      "main": [
+        [{ "node": "Insert Lead in Supabase", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "pinData": {}
+}

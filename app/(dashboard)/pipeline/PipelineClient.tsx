@@ -5,7 +5,7 @@ import type { AuthSession, TeamMember, Payment, LeadEstado, LeadScore } from "@/
 import type { LeadWithTeam } from "@/lib/queries/leads";
 import { LEAD_ESTADOS_LABELS, PROGRAMS } from "@/lib/constants";
 import { formatUSD } from "@/lib/format";
-import { getFiscalMonthOptions, getFiscalEnd } from "@/lib/date-utils";
+import { getFiscalMonthOptions, getFiscalEnd, parseLocalDate } from "@/lib/date-utils";
 import LeadDetailPanel from "./LeadDetailPanel";
 
 interface Props {
@@ -104,8 +104,8 @@ export default function PipelineClient({
       if (setterFilter !== "todos" && lead.setter_id !== setterFilter) return false;
 
       if (monthFilter !== "todos" && lead.fecha_llamada) {
-        const llamadaDate = new Date(lead.fecha_llamada);
-        const monthStart = new Date(monthFilter);
+        const llamadaDate = parseLocalDate(lead.fecha_llamada);
+        const monthStart = parseLocalDate(monthFilter);
         const monthEnd = getFiscalEnd(monthStart);
         if (llamadaDate < monthStart || llamadaDate > monthEnd) return false;
       }

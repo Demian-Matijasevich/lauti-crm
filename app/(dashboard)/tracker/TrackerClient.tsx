@@ -9,6 +9,7 @@ import EmptyState from "@/app/components/EmptyState";
 import SessionFormModal from "./SessionFormModal";
 import type { TrackerSession, SessionAvailability, AuthSession } from "@/lib/types";
 import { formatDate } from "@/lib/format";
+import { parseLocalDate } from "@/lib/date-utils";
 
 type View = "table" | "calendar";
 
@@ -47,7 +48,7 @@ export default function TrackerClient({ sessions, availability }: Props) {
   const calendarSessions = useMemo(() => {
     return sessions.filter((s) => {
       if (!s.fecha) return false;
-      const d = new Date(s.fecha);
+      const d = parseLocalDate(s.fecha);
       return d.getMonth() === calMonth && d.getFullYear() === calYear;
     });
   }, [sessions, calMonth, calYear]);

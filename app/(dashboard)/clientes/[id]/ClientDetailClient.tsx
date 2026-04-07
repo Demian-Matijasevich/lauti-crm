@@ -11,6 +11,7 @@ import type { AuthSession, SemanaEstado, FollowUpTipo } from "@/lib/types";
 import { healthToSemaforo } from "@/lib/types";
 import { PROGRAMS, CLIENT_ESTADOS_LABELS } from "@/lib/constants";
 import { formatUSD, formatDate, daysUntil } from "@/lib/format";
+import { parseLocalDate } from "@/lib/date-utils";
 
 type Tab = "overview" | "pagos" | "sesiones" | "seguimiento" | "followups" | "renovaciones";
 
@@ -48,7 +49,7 @@ export default function ClientDetailClient({ client }: Props) {
 
   const diasRestantes = (() => {
     if (!client.fecha_onboarding) return null;
-    const off = new Date(client.fecha_onboarding);
+    const off = parseLocalDate(client.fecha_onboarding);
     off.setDate(off.getDate() + client.total_dias_programa);
     return daysUntil(off.toISOString().split("T")[0]);
   })();

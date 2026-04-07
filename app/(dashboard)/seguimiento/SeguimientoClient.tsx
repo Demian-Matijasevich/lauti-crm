@@ -9,6 +9,7 @@ import type { Client, SessionAvailability, AuthSession, FollowUpTipo } from "@/l
 import { healthToSemaforo } from "@/lib/types";
 import { PROGRAMS } from "@/lib/constants";
 import { formatDate } from "@/lib/format";
+import { parseLocalDate } from "@/lib/date-utils";
 
 type ViewMode = "queue" | "semanas";
 
@@ -27,7 +28,7 @@ const SEMANA_LABELS: Record<string, string> = {
 function getPriority(client: Client): { level: number; label: string; color: string } {
   // Days since last follow-up
   const daysSince = client.fecha_ultimo_seguimiento
-    ? Math.floor((Date.now() - new Date(client.fecha_ultimo_seguimiento).getTime()) / (1000 * 60 * 60 * 24))
+    ? Math.floor((Date.now() - parseLocalDate(client.fecha_ultimo_seguimiento).getTime()) / (1000 * 60 * 60 * 24))
     : 999;
 
   if (client.estado_seguimiento === "seguimiento_urgente" || (daysSince >= 7 && client.estado_seguimiento === "para_seguimiento")) {

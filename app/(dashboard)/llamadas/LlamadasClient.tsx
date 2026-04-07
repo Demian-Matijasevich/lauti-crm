@@ -124,7 +124,7 @@ export default function LlamadasClient({ leads, closers, setters, payments, sess
 
       // Month filter (7-7)
       if (monthFilter !== "todos" && lead.fecha_llamada) {
-        const llamadaDate = new Date(lead.fecha_llamada);
+        const llamadaDate = parseLocalDate(lead.fecha_llamada);
         const monthStart = parseLocalDate(monthFilter);
         const monthEnd = getFiscalEnd(monthStart);
         if (llamadaDate < monthStart || llamadaDate > monthEnd) return false;
