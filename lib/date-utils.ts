@@ -23,31 +23,32 @@ export function toDateString(date: Date): string {
 
 /**
  * Get the fiscal month label for a date (7-7 month).
- * If day < 7, belongs to previous month.
+ * If day <= 7, belongs to previous month (the 7th is the LAST day of the previous fiscal period).
  */
 export function getFiscalMonth(date: Date): string {
-  const adjusted = date.getDate() < 7 ? subMonths(date, 1) : date;
+  const adjusted = date.getDate() <= 7 ? subMonths(date, 1) : date;
   const raw = format(adjusted, "MMMM yyyy", { locale: es });
   // Capitalize first letter to match SQL get_month_7_7() output ("Marzo 2026")
   return raw.charAt(0).toUpperCase() + raw.slice(1);
 }
 
 /**
- * Get the start date of a fiscal month (always the 7th).
+ * Get the start date of a fiscal month (always the 8th).
+ * The fiscal period runs from the 8th to the 7th of next month inclusive.
  */
 export function getFiscalStart(date: Date = new Date()): Date {
-  if (date.getDate() >= 7) {
-    return setDate(date, 7);
+  if (date.getDate() > 7) {
+    return setDate(date, 8);
   }
-  return setDate(subMonths(date, 1), 7);
+  return setDate(subMonths(date, 1), 8);
 }
 
 /**
- * Get the end date of a fiscal month (always the 6th of next month).
+ * Get the end date of a fiscal month (always the 7th of next month).
  */
 export function getFiscalEnd(date: Date = new Date()): Date {
   const start = getFiscalStart(date);
-  return setDate(addMonths(start, 1), 6);
+  return setDate(addMonths(start, 1), 7);
 }
 
 /**
