@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase-server";
-import { getFiscalStart, getFiscalEnd, getFiscalMonth } from "@/lib/date-utils";
+import { getFiscalStart, getFiscalEnd, getFiscalMonth, getToday, toDateString } from "@/lib/date-utils";
 import type { ObjectiveData } from "./HomeCloser";
 import HomeAdmin from "./HomeAdmin";
 import HomeCloser from "./HomeCloser";
@@ -21,14 +21,14 @@ export default async function DashboardPage() {
   const isMel = session.can_see_agent && session.roles.includes("cobranzas");
   if (isMel) {
     const supabaseMel = createServerClient();
-    const today = new Date().toISOString().split("T")[0];
+    const now = getToday();
+    const today = toDateString(now);
     const fiscalStart = getFiscalStart();
     const fiscalEnd = getFiscalEnd();
-    const fiscalStartStr = fiscalStart.toISOString().split("T")[0];
-    const fiscalEndStr = fiscalEnd.toISOString().split("T")[0];
+    const fiscalStartStr = toDateString(fiscalStart);
+    const fiscalEndStr = toDateString(fiscalEnd);
 
     // Week boundaries (Mon-Sun)
-    const now = new Date();
     const dayOfWeek = now.getDay();
     const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const monday = new Date(now);
@@ -36,8 +36,8 @@ export default async function DashboardPage() {
     monday.setHours(0, 0, 0, 0);
     const sunday = new Date(monday);
     sunday.setDate(monday.getDate() + 6);
-    const mondayStr = monday.toISOString().split("T")[0];
-    const sundayStr = sunday.toISOString().split("T")[0];
+    const mondayStr = toDateString(monday);
+    const sundayStr = toDateString(sunday);
 
     const [dueToday, paidThisMonth, overdueRes, melMemberRes, weeklyPaidRes] = await Promise.all([
       // Cuotas due today
@@ -85,8 +85,8 @@ export default async function DashboardPage() {
 
     // Build urgent payments list (due today + overdue)
     const urgentPayments = overdueData.map((p: any) => {
-      const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento + "T00:00:00") : new Date();
-      const todayDate = new Date();
+      const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento + "T00:00:00") : getToday();
+      const todayDate = getToday();
       todayDate.setHours(0, 0, 0, 0);
       const diasDiff = Math.floor((venc.getTime() - todayDate.getTime()) / (1000 * 60 * 60 * 24));
       return {
@@ -157,16 +157,15 @@ export default async function DashboardPage() {
     // Fetch admin data
     const fiscalStart = getFiscalStart();
     const fiscalEnd = getFiscalEnd();
-    const today = new Date().toISOString().split("T")[0];
+    const today = toDateString(getToday());
 
     const [cashRes, paymentsRes, overdueRes, atRiskRes, commissionsRes, leadsAtRes, atCommRes, pendingPaymentsRes, pipelineLeadsRes, renewalQueueRes] = await Promise.all([
       supabase.from("v_monthly_cash").select("*"),
+      // Fetch ALL paid payments (not just current fiscal) so the chart works for any selected month
       supabase
         .from("payments")
         .select("*")
-        .eq("estado", "pagado")
-        .gte("fecha_pago", fiscalStart.toISOString().split("T")[0])
-        .lte("fecha_pago", fiscalEnd.toISOString().split("T")[0]),
+        .eq("estado", "pagado"),
       supabase
         .from("payments")
         .select("*")
@@ -187,8 +186,8 @@ export default async function DashboardPage() {
         .from("payments")
         .select("monto_usd")
         .eq("estado", "pendiente")
-        .gte("fecha_vencimiento", fiscalStart.toISOString().split("T")[0])
-        .lte("fecha_vencimiento", fiscalEnd.toISOString().split("T")[0]),
+        .gte("fecha_vencimiento", toDateString(fiscalStart))
+        .lte("fecha_vencimiento", toDateString(fiscalEnd)),
       // Revenue prediction: pipeline leads
       supabase
         .from("leads")
@@ -240,7 +239,7 @@ export default async function DashboardPage() {
   const isSetter = roles.includes("setter");
 
   if (isCloser) {
-    const currentFiscalMonth = getFiscalMonth(new Date());
+    const currentFiscalMonth = getFiscalMonth(getToday());
     const [leadsRes, kpisRes, objRes] = await Promise.all([
       supabase
         .from("leads")
@@ -270,7 +269,7 @@ export default async function DashboardPage() {
   }
 
   if (isSetter) {
-    const currentFiscalMonth = getFiscalMonth(new Date());
+    const currentFiscalMonth = getFiscalMonth(getToday());
     const [reportsRes, leadsRes, objRes] = await Promise.all([
       supabase
         .from("daily_reports")

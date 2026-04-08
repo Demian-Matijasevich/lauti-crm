@@ -2,6 +2,17 @@ import { format, subMonths, setDate, isAfter, isBefore, addMonths } from "date-f
 import { es } from "date-fns/locale";
 
 /**
+ * Get the current date in São Paulo timezone (UTC-3).
+ * On Vercel (UTC), at 9PM Brazil time the UTC date is already the next day.
+ * This ensures fiscal month calculations are correct regardless of server timezone.
+ */
+export function getToday(): Date {
+  const now = new Date();
+  const spTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  return spTime;
+}
+
+/**
  * Parse a YYYY-MM-DD string as a LOCAL date (no timezone shift).
  * new Date("2026-03-07") in -3 timezone → March 6 21:00 (WRONG)
  * parseLocalDate("2026-03-07") → March 7 00:00 local (CORRECT)
@@ -36,7 +47,7 @@ export function getFiscalMonth(date: Date): string {
  * Get the start date of a fiscal month (always the 8th).
  * The fiscal period runs from the 8th to the 7th of next month inclusive.
  */
-export function getFiscalStart(date: Date = new Date()): Date {
+export function getFiscalStart(date: Date = getToday()): Date {
   if (date.getDate() > 7) {
     return setDate(date, 8);
   }
@@ -46,7 +57,7 @@ export function getFiscalStart(date: Date = new Date()): Date {
 /**
  * Get the end date of a fiscal month (always the 7th of next month).
  */
-export function getFiscalEnd(date: Date = new Date()): Date {
+export function getFiscalEnd(date: Date = getToday()): Date {
   const start = getFiscalStart(date);
   return setDate(addMonths(start, 1), 7);
 }
@@ -73,7 +84,7 @@ export function getPrevFiscalStart(): Date {
  */
 export function getFiscalMonthOptions(count: number = 6): { value: string; label: string }[] {
   const options: { value: string; label: string }[] = [];
-  let current = new Date();
+  let current = getToday();
   for (let i = 0; i < count; i++) {
     const start = getFiscalStart(current);
     const label = getFiscalMonth(current);

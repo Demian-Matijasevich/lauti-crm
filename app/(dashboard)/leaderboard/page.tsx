@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase-server";
-import { getFiscalMonth } from "@/lib/date-utils";
+import { getFiscalMonth, getToday } from "@/lib/date-utils";
 import LeaderboardClient from "./LeaderboardClient";
 import type { Lead, AtCommission } from "@/lib/types";
 import type { ObjectiveData } from "./LeaderboardClient";
@@ -15,7 +15,7 @@ export default async function LeaderboardPage() {
   // Visible to all roles — no admin check
 
   const supabase = createServerClient();
-  const currentFiscalMonth = getFiscalMonth(new Date());
+  const currentFiscalMonth = getFiscalMonth(getToday());
 
   const [leadsRes, commRes, objRes] = await Promise.all([
     supabase

@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { PROGRAMS } from "@/lib/constants";
 import { formatUSD, formatDate } from "@/lib/format";
+import { getToday } from "@/lib/date-utils";
 import EstadoCuentaActions from "./EstadoCuentaActions";
 
 export const dynamic = "force-dynamic";
@@ -40,7 +41,7 @@ export default async function EstadoCuentaPage({ params }: Props) {
       <div className="border-b-2 border-black pb-4 mb-6">
         <h1 className="text-2xl font-bold text-black">Lauti CRM — Estado de Cuenta</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Generado el {new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}
+          Generado el {getToday().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}
         </p>
       </div>
 

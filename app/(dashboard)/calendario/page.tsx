@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { createServerClient } from "@/lib/supabase-server";
+import { getToday, toDateString } from "@/lib/date-utils";
 import CalendarioClient from "./CalendarioClient";
 import type { CalendarLead, CalendarPayment, CalendarRenewal } from "./CalendarioClient";
 
@@ -13,7 +14,7 @@ export default async function CalendarioPage() {
   const supabase = createServerClient();
 
   // Fetch data for the current month range (we'll fetch 3 months to allow navigation)
-  const now = new Date();
+  const now = getToday();
   const rangeStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const rangeEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0);
 
@@ -43,8 +44,8 @@ export default async function CalendarioPage() {
   ]);
 
   // Process renewals from clients data (replicate v_renewal_queue logic)
-  const today = new Date();
-  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const today = getToday();
+  const todayStr = toDateString(today);
   const renewals: CalendarRenewal[] = (renewalsRes.data ?? [])
     .map((c: Record<string, unknown>) => {
       const onb = new Date(c.fecha_onboarding as string);

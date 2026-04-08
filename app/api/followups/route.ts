@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { followUpSchema } from "@/lib/schemas";
 import { createFollowUp } from "@/lib/queries/followups";
 import { createServerClient } from "@/lib/supabase-server";
+import { getToday, toDateString } from "@/lib/date-utils";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
     const followUp = await createFollowUp({
       client_id: parsed.data.client_id,
       author_id: result.session.team_member_id,
-      fecha: new Date().toISOString().split("T")[0],
+      fecha: toDateString(getToday()),
       tipo: parsed.data.tipo,
       notas: parsed.data.notas,
       proxima_accion: parsed.data.proxima_accion ?? null,
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
     // Update client's seguimiento dates
     const supabase = createServerClient();
     const updateFields: Record<string, unknown> = {
-      fecha_ultimo_seguimiento: new Date().toISOString().split("T")[0],
+      fecha_ultimo_seguimiento: toDateString(getToday()),
     };
     if (parsed.data.proxima_fecha) {
       updateFields.fecha_proximo_seguimiento = parsed.data.proxima_fecha;

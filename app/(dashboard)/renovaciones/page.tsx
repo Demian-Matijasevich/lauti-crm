@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase-server";
+import { getToday } from "@/lib/date-utils";
 import type { RenewalQueueRow } from "@/lib/types";
 import RenovacionesClient from "./RenovacionesClient";
 
@@ -39,7 +40,7 @@ export default async function RenovacionesPage() {
     if (!c.fecha_onboarding) return false;
     const venc = new Date(c.fecha_onboarding);
     venc.setDate(venc.getDate() + (c.total_dias_programa ?? 90));
-    return venc < new Date();
+    return venc < getToday();
   }).length;
 
   const allRenewals = (renewalHistory ?? []) as any[];

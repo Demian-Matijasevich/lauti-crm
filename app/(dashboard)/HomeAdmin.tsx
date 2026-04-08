@@ -19,7 +19,7 @@ import KPICard from "@/app/components/KPICard";
 import MonthSelector77 from "@/app/components/MonthSelector77";
 import SaleBanner from "@/app/components/SaleBanner";
 import { formatUSD, formatDate } from "@/lib/format";
-import { getFiscalStart, getFiscalEnd, getFiscalMonth, parseLocalDate } from "@/lib/date-utils";
+import { getFiscalStart, getFiscalEnd, getFiscalMonth, parseLocalDate, toDateString } from "@/lib/date-utils";
 import { subMonths } from "date-fns";
 import type { MonthlyCash, Payment, Client, Commission, AtCommission } from "@/lib/types";
 
@@ -417,29 +417,59 @@ export default function HomeAdmin({
         </h2>
         {dailyCashData.length === 0 ? (
           <p className="text-[var(--muted)] text-sm py-8 text-center">
-            Sin pagos en este periodo
+            Sin datos para este periodo
           </p>
         ) : (
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={(() => {
-              // Add projection point at the end
+              const todayStr = toDateString(new Date()); // client runs in browser, correct tz
               const RENEWAL_RATE = 0.4;
               const renewalExpected = revPrediction.renewalCount * revPrediction.renewalAvgValue * RENEWAL_RATE;
               const projectedTotal = revPrediction.cashCollected + revPrediction.cuotasPendientes + renewalExpected + revPrediction.pipelineTotal * 0.3;
-              const dataWithProjection = dailyCashData.map((d, i) => ({
-                ...d,
-                projection: i === dailyCashData.length - 1 ? d.cash : undefined,
-              }));
-              // Add projected endpoint
-              dataWithProjection.push({
-                fecha: "proj",
-                label: "Proyectado",
-                cash: 0,
+
+              // Split actual (past/today) vs future
+              const start = parseLocalDate(selectedMonth);
+              const end = getFiscalEnd(start);
+              const endStr = toDateString(end);
+
+              // Build chart data: actual dates get "cash" filled, projection is separate
+              const chartData = dailyCashData.map((d) => {
+                const isPast = d.fecha <= todayStr;
+                return {
+                  ...d,
+                  cash: isPast ? d.cash : undefined,
+                  projection: undefined as number | undefined,
+                };
+              });
+
+              // Find today's cumulative value (last actual point)
+              const lastActual = [...dailyCashData].reverse().find((d) => d.fecha <= todayStr);
+              const todayCumulative = lastActual?.cash ?? 0;
+
+              // Add projection start (today) and end (fiscal end)
+              if (lastActual) {
+                // Mark the last actual point as also the projection start
+                const lastActualIdx = chartData.findIndex((d) => d.fecha === lastActual.fecha);
+                if (lastActualIdx >= 0) {
+                  chartData[lastActualIdx].projection = todayCumulative;
+                }
+              }
+
+              // Add projected endpoint at fiscal end
+              const endLabel = parseLocalDate(endStr).toLocaleDateString("es-AR", {
+                day: "2-digit",
+                month: "short",
+              });
+              chartData.push({
+                fecha: endStr,
+                label: endLabel + " (proy.)",
+                cash: undefined,
                 daily: 0,
                 dailyColor: "var(--green)",
                 projection: Math.round(projectedTotal),
-              } as typeof dataWithProjection[0]);
-              return dataWithProjection;
+              } as any);
+
+              return chartData;
             })()}>
               <defs>
                 <linearGradient id="cashGradient" x1="0" y1="0" x2="0" y2="1">
@@ -469,7 +499,8 @@ export default function HomeAdmin({
                 }}
                 formatter={(value, name) => {
                   if (name === "projection") return [formatUSD(Number(value)), "Proyectado"];
-                  return [formatUSD(Number(value)), "Cash acumulado"];
+                  if (name === "cash") return [formatUSD(Number(value)), "Cash acumulado"];
+                  return [formatUSD(Number(value)), String(name)];
                 }}
                 labelFormatter={(label) => String(label)}
               />

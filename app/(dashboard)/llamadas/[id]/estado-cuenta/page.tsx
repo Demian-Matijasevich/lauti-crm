@@ -3,6 +3,7 @@ import { createServerClient } from "@/lib/supabase-server";
 import { getSession } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { PROGRAMS, LEAD_ESTADOS_LABELS } from "@/lib/constants";
+import { getToday } from "@/lib/date-utils";
 import { formatUSD, formatDate } from "@/lib/format";
 import type { Payment } from "@/lib/types";
 import EstadoCuentaLeadActions from "./EstadoCuentaLeadActions";
@@ -53,7 +54,7 @@ export default async function EstadoCuentaLeadPage({ params }: Props) {
       <div className="border-b-2 border-black pb-4 mb-6">
         <h1 className="text-2xl font-bold text-black">Lauti CRM — Estado de Cuenta (Lead)</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Generado el {new Date().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}
+          Generado el {getToday().toLocaleDateString("es-AR", { day: "2-digit", month: "long", year: "numeric" })}
         </p>
       </div>
 

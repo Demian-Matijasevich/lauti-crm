@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { ventaChatSchema } from "@/lib/schemas";
 import { createLead } from "@/lib/queries/leads";
 import { createPayment } from "@/lib/queries/payments";
+import { getToday, toDateString } from "@/lib/date-utils";
 import type { LeadEstado, LeadFuente, MetodoPago, PlanPago, Programa } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -47,7 +48,7 @@ export async function POST(req: NextRequest) {
       evento_calendly: null,
       calendly_event_id: null,
       fecha_agendado: null,
-      fecha_llamada: new Date().toISOString(),
+      fecha_llamada: getToday().toISOString(),
       estado: "cerrado" as LeadEstado,
       setter_id: setter_id,
       closer_id: null,
@@ -84,7 +85,7 @@ export async function POST(req: NextRequest) {
       numero_cuota: 1,
       monto_usd,
       monto_ars: 0,
-      fecha_pago: (body.fecha as string) || new Date().toISOString().split("T")[0],
+      fecha_pago: (body.fecha as string) || toDateString(getToday()),
       fecha_vencimiento: null,
       estado: "pagado",
       metodo_pago: (metodo_pago as MetodoPago) || null,

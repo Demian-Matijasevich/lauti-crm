@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
-import { getFiscalStart, getFiscalEnd, toDateString } from "@/lib/date-utils";
+import { getFiscalStart, getFiscalEnd, toDateString, getToday } from "@/lib/date-utils";
 import type { TeamMember, Payment, Lead } from "@/lib/types";
 
 const API_SECRET = process.env.CRON_SECRET || process.env.JWT_SECRET || "";
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const supabase = createServerClient();
-    const today = new Date();
+    const today = getToday();
     const todayStr = toDateString(today);
     const yesterdayDate = new Date(today);
     yesterdayDate.setDate(today.getDate() - 1);

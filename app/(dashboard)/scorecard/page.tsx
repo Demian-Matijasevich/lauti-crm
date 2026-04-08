@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { createServerClient } from "@/lib/supabase-server";
+import { getToday } from "@/lib/date-utils";
 import ScorecardClient from "./ScorecardClient";
 import type { Lead, Payment, TeamMember } from "@/lib/types";
 
@@ -14,7 +15,7 @@ export default async function ScorecardPage() {
   const supabase = createServerClient();
 
   // Calculate last 2 weeks (Mon-Sun)
-  const now = new Date();
+  const now = getToday();
   const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon...
   const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
 

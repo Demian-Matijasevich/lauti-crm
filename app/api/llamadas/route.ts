@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { llamadaSchema } from "@/lib/schemas";
 import { updateLead } from "@/lib/queries/leads";
 import { createPayment } from "@/lib/queries/payments";
+import { getToday, toDateString } from "@/lib/date-utils";
 import type { LeadEstado, LeadCalificacion, Programa, MetodoPago } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
     // Update the lead
     const leadUpdate: Record<string, unknown> = {
       estado: estado as LeadEstado,
-      fecha_llamada: new Date().toISOString(),
+      fecha_llamada: getToday().toISOString(),
     };
 
     if (programa_pitcheado) leadUpdate.programa_pitcheado = programa_pitcheado;
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
           numero_cuota: 1,
           monto_usd: paymentData.monto_usd,
           monto_ars: 0,
-          fecha_pago: new Date().toISOString().split("T")[0],
+          fecha_pago: toDateString(getToday()),
           fecha_vencimiento: null,
           estado: "pagado",
           metodo_pago: (paymentData.metodo_pago as MetodoPago) || null,
