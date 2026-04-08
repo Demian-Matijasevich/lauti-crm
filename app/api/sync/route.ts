@@ -2,6 +2,8 @@
 // Full Airtable → Supabase sync endpoint (runs nightly via n8n cron)
 // Combines: sync-airtable.ts + import-airtable-7-7.ts + sync-commissions.ts + health-score refresh
 
+export const maxDuration = 60;
+
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase-server";
 
