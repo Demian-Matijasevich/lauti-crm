@@ -25,7 +25,7 @@ const cashByMonth = [
   { mes: "Dic", cash: 75323 },
   { mes: "Ene", cash: 68851 },
   { mes: "Feb", cash: 73665 },
-  { mes: "Mar", cash: 147866 },
+  { mes: "Mar", cash: 153172 },
 ];
 
 // Donut: leads por estado
@@ -191,12 +191,13 @@ export default function MarzoCompletoReport() {
           <KPI label="Cierre Mismo Dia" value="77.6%" sub="52 de 67" />
           <KPI label="En Seguimiento" value="25 leads" severity="warn" />
           <KPI label="Reservas Pendientes" value="17 leads" severity="warn" />
-          <KPI label="Cuotas Cobradas Mar" value={usd(20540)} sub="20 cuotas con fecha" />
+          <KPI label="Cuotas Cobradas Mar" value={usd(24540)} sub="34 cuotas con MC asignado" />
         </div>
 
         <div className="mt-4 border border-amber-300 bg-amber-50 rounded-xl p-4">
           <p className="text-sm font-semibold text-amber-800 mb-1">Cuotas Pendientes con fecha</p>
-          <p className="text-2xl font-black text-amber-900">{usd(123777)} <span className="text-base font-medium text-amber-600">(113 cuotas)</span></p>
+          <p className="text-2xl font-black text-amber-900">{usd(5485)} <span className="text-base font-medium text-amber-600">(5 cuotas)</span></p>
+          <p className="text-xs text-amber-600 mt-1">120 registros sin fecha de vencimiento no se cuentan</p>
         </div>
 
         {/* Programs sold table */}
@@ -785,38 +786,59 @@ export default function MarzoCompletoReport() {
             <tbody>
               <tr className="bg-white">
                 <td className="px-4 py-2.5 font-medium">Jorge</td>
-                <td className="px-4 py-2.5 text-right">{usd(6706)}</td>
-                <td className="px-4 py-2.5 text-right">{usd(3729)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(6936)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(3844)}</td>
                 <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
-                <td className="px-4 py-2.5 text-right font-bold">{usd(10435)}</td>
+                <td className="px-4 py-2.5 text-right font-bold">{usd(10780)}</td>
               </tr>
               <tr className="bg-gray-50">
                 <td className="px-4 py-2.5 font-medium">Joaquin</td>
                 <td className="px-4 py-2.5 text-right">{usd(2315)}</td>
-                <td className="px-4 py-2.5 text-right">{usd(3355)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(3476)}</td>
                 <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
-                <td className="px-4 py-2.5 text-right font-bold">{usd(5670)}</td>
+                <td className="px-4 py-2.5 text-right font-bold">{usd(5791)}</td>
               </tr>
               <tr className="bg-white">
                 <td className="px-4 py-2.5 font-medium">Ivan</td>
-                <td className="px-4 py-2.5 text-right">{usd(4914)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(4894)}</td>
                 <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
                 <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
-                <td className="px-4 py-2.5 text-right font-bold">{usd(4914)}</td>
+                <td className="px-4 py-2.5 text-right font-bold">{usd(4894)}</td>
               </tr>
               <tr className="bg-gray-50">
                 <td className="px-4 py-2.5 font-medium">Mel</td>
                 <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
                 <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
-                <td className="px-4 py-2.5 text-right">{usd(1504)}</td>
-                <td className="px-4 py-2.5 text-right font-bold">{usd(1504)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(2134)}</td>
+                <td className="px-4 py-2.5 text-right font-bold">{usd(2134)}</td>
+              </tr>
+              <tr className="bg-white">
+                <td className="px-4 py-2.5 font-medium">Hernan</td>
+                <td className="px-4 py-2.5 text-right">{usd(180)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
+                <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
+                <td className="px-4 py-2.5 text-right font-bold">{usd(180)}</td>
+              </tr>
+              <tr className="bg-gray-50">
+                <td className="px-4 py-2.5 font-medium">Juanma</td>
+                <td className="px-4 py-2.5 text-right">{usd(250)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
+                <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
+                <td className="px-4 py-2.5 text-right font-bold">{usd(250)}</td>
+              </tr>
+              <tr className="bg-white">
+                <td className="px-4 py-2.5 font-medium">Juan Goupil</td>
+                <td className="px-4 py-2.5 text-right">{usd(110)}</td>
+                <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
+                <td className="px-4 py-2.5 text-right text-gray-300">&mdash;</td>
+                <td className="px-4 py-2.5 text-right font-bold">{usd(110)}</td>
               </tr>
               <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
                 <td className="px-4 py-2.5">TOTAL</td>
-                <td className="px-4 py-2.5 text-right">{usd(13935)}</td>
-                <td className="px-4 py-2.5 text-right">{usd(7084)}</td>
-                <td className="px-4 py-2.5 text-right">{usd(1504)}</td>
-                <td className="px-4 py-2.5 text-right">{usd(22523)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(14685)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(7320)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(2134)}</td>
+                <td className="px-4 py-2.5 text-right">{usd(24139)}</td>
               </tr>
             </tbody>
           </table>
