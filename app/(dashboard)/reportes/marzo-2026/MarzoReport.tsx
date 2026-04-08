@@ -97,7 +97,7 @@ export default function MarzoReport() {
         <KPI label="Cash Collected" value={usd(147_866)} delta={100.7} />
         <KPI label="Cuotas Cobradas" value={usd(20_540)} sub="20 cuotas" delta={124} />
         <KPI label="Saldo Pendiente" value={usd(23_468)} />
-        <KPI label="Cuotas Pendientes" value={usd(123_777)} sub="233 cuotas" severity="warn" />
+        <KPI label="Cuotas Pendientes" value={usd(123_777)} sub="113 cuotas con vencimiento" severity="warn" />
         <KPI label="Renovaciones" value="$0" severity="bad" sub="Feb: $3,375" />
         <KPI label="Total Leads" value="178" />
         <KPI label="Tasa de Cierre" value="55%" sub="98/178 leads" />
@@ -234,27 +234,29 @@ export default function MarzoReport() {
 
       {/* ── INSTAGRAM ── */}
       <section className="mb-10">
-        <SectionTitle>Instagram Metrics (31 Dic 2025 &ndash; 30 Mar 2026)</SectionTitle>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
-          <MiniKPI label="Alcance" value="324,728" />
-          <MiniKPI label="Impresiones" value="5,199,487" />
-          <MiniKPI label="Seguidores neto" value="+6,425" />
-          <MiniKPI label="Reels publicados" value="350" />
-          <MiniKPI label="Interacciones" value="61,776" />
+        <SectionTitle>Instagram Metrics &mdash; Trimestre (Dic 31 &ndash; Mar 30) &middot; Promedio mensual entre par&eacute;ntesis</SectionTitle>
+        <p className="text-sm text-gray-500 mt-1 mb-3">Datos disponibles: trimestre completo (3 meses). Promedio mensual estimado entre paréntesis.</p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MiniKPI label="Alcance" value="324,728 (~108K/mes)" />
+          <MiniKPI label="Impresiones" value="5.2M (~1.7M/mes)" />
+          <MiniKPI label="Seguidores neto" value="+6,425 (~2.1K/mes)" />
+          <MiniKPI label="Reels publicados" value="350 (~117/mes)" />
+          <MiniKPI label="Interacciones reels" value="61,776 (~20.6K/mes)" />
           <MiniKPI label="ER por reel" value="2.75%" />
           <MiniKPI label="Saves/reel" value="22" />
-          <MiniKPI label="Shares/reel" value="16.1" />
+          <MiniKPI label="Shares/reel" value="16" />
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-          <MiniKPI label="Leads IG" value="90" />
-          <MiniKPI label="Ventas IG" value="24" />
-          <MiniKPI label="Cash IG" value="$29,251" />
+          <MiniKPI label="Leads IG (trimestre)" value="90 (~30/mes)" />
+          <MiniKPI label="Ventas IG" value="24 (~8/mes)" />
+          <MiniKPI label="Cash IG" value="$29,251 (~$9.8K/mes)" />
           <MiniKPI label="Close rate IG" value="26.7%" />
-          <MiniKPI label="Lead rate" value="0.028%" />
+          <MiniKPI label="Lead rate (alcance→lead)" value="0.028%" />
           <MiniKPI label="Revenue/lead" value="$325" />
-          <MiniKPI label="Likes" value="41,688" />
-          <MiniKPI label="Comentarios" value="952" />
+          <MiniKPI label="Likes totales" value="41,688" />
+          <MiniKPI label="Guardados totales" value="7,687" />
         </div>
+        <p className="text-xs text-gray-400 mt-2">* Para métricas mensuales exactas de IG, cargar datos semanales en la sección IG Metrics del CRM.</p>
       </section>
 
       {/* ── TREASURY ── */}
@@ -304,7 +306,7 @@ export default function MarzoReport() {
             title="Cuotas pendientes ($123,777)"
             number={3}
           >
-            <p>233 cuotas sin cobrar. Si Mel cobra el 50%, son <strong>$62K adicionales</strong>.</p>
+            <p>113 cuotas con vencimiento por cobrar. Si Mel cobra el 50%, son <strong>$62K adicionales</strong>.</p>
             <Action>Priorizar las de mayor monto primero. Sistema de cobro automatizado con recordatorios.</Action>
           </Bottleneck>
 
