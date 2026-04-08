@@ -4,8 +4,10 @@ import { generateTasks } from "@/lib/task-generator";
 
 export async function POST(request: NextRequest) {
   // Allow admin users OR requests with service role key (for n8n)
-  const serviceKey = request.headers.get("x-service-key");
-  const isServiceCall = serviceKey === process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceKey = request.headers.get("x-service-key")?.trim();
+  const authBearer = request.headers.get("authorization")?.replace("Bearer ", "").trim();
+  const token = serviceKey || authBearer;
+  const isServiceCall = token === process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!isServiceCall) {
     const auth = await requireAdmin();

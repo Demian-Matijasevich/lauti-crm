@@ -341,9 +341,9 @@ export async function POST(request: NextRequest) {
   // Auth: require service role key
   const authHeader = request.headers.get("authorization");
   const serviceKey = request.headers.get("x-service-key");
-  const token = authHeader?.replace("Bearer ", "") || serviceKey;
+  const token = (authHeader?.replace("Bearer ", "") || serviceKey || "").trim();
 
-  if (token !== process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (token !== process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
