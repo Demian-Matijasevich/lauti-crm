@@ -2,18 +2,15 @@
 
 import { useState, useMemo } from "react";
 import type { AuthSession, AgentTask } from "@/lib/types";
-import type { CobranzasQueueItem, AuditCuotaRow } from "@/lib/queries/cobranzas";
+import type { CobranzasQueueItem, AuditCuotaRow, PaidPaymentRecord } from "@/lib/queries/cobranzas";
 import MonthSelector77 from "@/app/components/MonthSelector77";
-import { getFiscalMonth, parseLocalDate, getFiscalStart, toDateString } from "@/lib/date-utils";
+import { getFiscalMonth, parseLocalDate, getFiscalStart, getFiscalEnd, toDateString, getToday as getDateToday } from "@/lib/date-utils";
 import { addMonths, setDate } from "date-fns";
 
 interface Props {
   initialQueue: CobranzasQueueItem[];
-  fiscalItems: CobranzasQueueItem[];
-  fiscalPaid: { total: number; count: number };
-  totalPorCobrar: number;
-  fiscalStart: string;
-  fiscalEnd: string;
+  allPendingItems: CobranzasQueueItem[];
+  allPaidPayments: PaidPaymentRecord[];
   allTasks: AgentTask[];
   auditCuotas: AuditCuotaRow[];
   auditRenovaciones: AuditCuotaRow[];
@@ -94,11 +91,8 @@ function getWeekRange(): { start: string; end: string } {
 
 export default function CobranzasClient({
   initialQueue,
-  fiscalItems,
-  fiscalPaid,
-  totalPorCobrar,
-  fiscalStart,
-  fiscalEnd,
+  allPendingItems,
+  allPaidPayments,
   allTasks,
   auditCuotas,
   auditRenovaciones,
@@ -113,10 +107,73 @@ export default function CobranzasClient({
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set());
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
 
+  // Fiscal month selector — defaults to current fiscal month
+  const [selectedMonth, setSelectedMonth] = useState(() =>
+    toDateString(getFiscalStart(getDateToday()))
+  );
+
   const canSeeAgent = session.can_see_agent;
 
   const todayStr = getToday();
   const weekRange = getWeekRange();
+
+  // Derive fiscal start/end from selected month
+  const fiscalStart = selectedMonth; // already YYYY-MM-DD of the 8th
+  const fiscalEnd = useMemo(() => {
+    const start = parseLocalDate(selectedMonth);
+    return toDateString(setDate(addMonths(start, 1), 7));
+  }, [selectedMonth]);
+
+  // Filter pending items by selected fiscal period (include overdue + in-range + no-date)
+  const fiscalItems = useMemo(() => {
+    const seenIds = new Set<string>();
+    return allPendingItems.filter((item) => {
+      if (seenIds.has(item.id)) return false;
+      seenIds.add(item.id);
+      if (!item.fecha_vencimiento) return true; // items without date always show
+      // Include if within fiscal range OR overdue (before today but within/before this period)
+      return (
+        item.fecha_vencimiento >= fiscalStart && item.fecha_vencimiento <= fiscalEnd
+      ) || (
+        item.fecha_vencimiento < todayStr && item.fecha_vencimiento >= fiscalStart
+      );
+    });
+  }, [allPendingItems, fiscalStart, fiscalEnd, todayStr]);
+
+  // Also include overdue items from before the fiscal start (they should show in current month)
+  const fiscalItemsWithOverdue = useMemo(() => {
+    // For current fiscal month, include all overdue. For past months, only items in that range.
+    const currentFiscalStart = toDateString(getFiscalStart(getDateToday()));
+    if (selectedMonth === currentFiscalStart) {
+      // Current month: include fiscal range + all overdue
+      const seenIds = new Set<string>(fiscalItems.map((i) => i.id));
+      const overdue = allPendingItems.filter(
+        (item) =>
+          !seenIds.has(item.id) &&
+          item.fecha_vencimiento &&
+          item.fecha_vencimiento < todayStr
+      );
+      return [...overdue, ...fiscalItems];
+    }
+    return fiscalItems;
+  }, [fiscalItems, allPendingItems, selectedMonth, todayStr]);
+
+  // Fiscal paid: filter by selected fiscal period
+  const fiscalPaid = useMemo(() => {
+    const filtered = allPaidPayments.filter(
+      (p) => p.fecha_pago && p.fecha_pago >= fiscalStart && p.fecha_pago <= fiscalEnd
+    );
+    return {
+      total: filtered.reduce((sum, p) => sum + p.monto_usd, 0),
+      count: filtered.length,
+    };
+  }, [allPaidPayments, fiscalStart, fiscalEnd]);
+
+  // Total por cobrar for the selected month
+  const totalPorCobrar = useMemo(
+    () => fiscalItemsWithOverdue.reduce((sum, i) => sum + i.monto_usd, 0),
+    [fiscalItemsWithOverdue]
+  );
 
   // Separate items with and without fecha_vencimiento
   const { queueWithDate, queueParaRevisar } = useMemo(() => {
@@ -203,8 +260,8 @@ export default function CobranzasClient({
     .filter((i) => i.fecha_vencimiento === todayStr)
     .reduce((sum, i) => sum + i.monto_usd, 0);
 
-  const totalVencidas = fiscalItems.filter((i) => i.semaforo === "vencido").length;
-  const montoVencido = fiscalItems
+  const totalVencidas = fiscalItemsWithOverdue.filter((i) => i.semaforo === "vencido").length;
+  const montoVencido = fiscalItemsWithOverdue
     .filter((i) => i.semaforo === "vencido")
     .reduce((sum, i) => sum + i.monto_usd, 0);
 
@@ -214,8 +271,8 @@ export default function CobranzasClient({
 
   // Weekly breakdown
   const weeks = useMemo(
-    () => getWeekBuckets(fiscalStart, fiscalEnd, fiscalItems),
-    [fiscalStart, fiscalEnd, fiscalItems]
+    () => getWeekBuckets(fiscalStart, fiscalEnd, fiscalItemsWithOverdue),
+    [fiscalStart, fiscalEnd, fiscalItemsWithOverdue]
   );
 
   // Potencial del mes: cuotas pendientes + renovaciones esperadas
@@ -583,7 +640,8 @@ export default function CobranzasClient({
 
   return (
     <div className="space-y-6">
-      {/* Main Tab Toggle */}
+      {/* Main Tab Toggle + Month Selector */}
+      <div className="flex flex-wrap items-center gap-4">
       <div className="flex gap-1 bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-1 w-fit">
         <button
           onClick={() => setMainTab("cola")}
@@ -606,9 +664,14 @@ export default function CobranzasClient({
           Auditoria Cuotas
         </button>
       </div>
+      <div className="flex items-center gap-2">
+        <span className="text-sm text-[var(--muted)]">Mes fiscal:</span>
+        <MonthSelector77 value={selectedMonth} onChange={setSelectedMonth} />
+      </div>
+      </div>
 
       {mainTab === "auditoria" && (
-        <AuditoriaCuotasTab cuotas={auditCuotas} renovaciones={auditRenovaciones} />
+        <AuditoriaCuotasTab cuotas={auditCuotas} renovaciones={auditRenovaciones} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} />
       )}
 
       {mainTab === "cola" && <>
@@ -645,7 +708,7 @@ export default function CobranzasClient({
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
           <p className="text-xs text-[var(--muted)] uppercase font-medium">Por cobrar este mes</p>
           <p className="text-2xl font-bold text-white">${totalPorCobrar.toLocaleString()}</p>
-          <p className="text-xs text-[var(--muted)] mt-1">{fiscalItems.length} cuotas pendientes</p>
+          <p className="text-xs text-[var(--muted)] mt-1">{fiscalItemsWithOverdue.length} cuotas pendientes</p>
         </div>
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4">
           <p className="text-xs text-[var(--muted)] uppercase font-medium">Cobrado este mes</p>
@@ -1043,16 +1106,18 @@ export default function CobranzasClient({
 function AuditoriaCuotasTab({
   cuotas,
   renovaciones,
+  selectedMonth,
+  onMonthChange,
 }: {
   cuotas: AuditCuotaRow[];
   renovaciones: AuditCuotaRow[];
+  selectedMonth: string;
+  onMonthChange: (value: string) => void;
 }) {
-  const currentFiscalStart = toDateString(getFiscalStart());
-  const [selectedPeriod, setSelectedPeriod] = useState(currentFiscalStart);
   const [cobradorFilter, setCobradorFilter] = useState<"todos" | "mel">("todos");
 
   // Compute fiscal period end from selected start (8th -> 7th of next month)
-  const periodStart = parseLocalDate(selectedPeriod);
+  const periodStart = parseLocalDate(selectedMonth);
   const periodEnd = setDate(addMonths(periodStart, 1), 7);
   const periodStartStr = toDateString(periodStart);
   const periodEndStr = toDateString(periodEnd);
@@ -1108,10 +1173,6 @@ function AuditoriaCuotasTab({
     <div className="space-y-6">
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-center">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-[var(--muted)]">Periodo fiscal:</span>
-          <MonthSelector77 value={selectedPeriod} onChange={setSelectedPeriod} />
-        </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-[var(--muted)]">Cobrador:</span>
           <select

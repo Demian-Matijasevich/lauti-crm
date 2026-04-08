@@ -377,6 +377,91 @@ export async function fetchFiscalPaidPayments(): Promise<{ total: number; count:
   };
 }
 
+/** Paid payment record for client-side fiscal filtering */
+export interface PaidPaymentRecord {
+  id: string;
+  monto_usd: number;
+  fecha_pago: string | null;
+}
+
+/** Fetch ALL paid payments (no date filter) — client filters by selected month */
+export async function fetchAllPaidPayments(): Promise<PaidPaymentRecord[]> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("payments")
+    .select("id, monto_usd, fecha_pago")
+    .eq("estado", "pagado")
+    .order("fecha_pago", { ascending: false });
+
+  if (error) throw new Error(`fetchAllPaidPayments: ${error.message}`);
+
+  return (data ?? []).map((p: any) => ({
+    id: p.id,
+    monto_usd: p.monto_usd ?? 0,
+    fecha_pago: p.fecha_pago,
+  }));
+}
+
+/** Fetch ALL pending payments (no date filter) as CobranzasQueueItem — client filters by selected month */
+export async function fetchAllPendingPaymentsAsItems(): Promise<CobranzasQueueItem[]> {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("payments")
+    .select(`
+      id, monto_usd, fecha_vencimiento, estado, numero_cuota,
+      client:clients(id, nombre, telefono, programa, estado_contacto, canal_contacto),
+      lead:leads(id, nombre, telefono)
+    `)
+    .eq("estado", "pendiente")
+    .order("fecha_vencimiento", { ascending: true });
+
+  if (error) throw new Error(`fetchAllPendingPaymentsAsItems: ${error.message}`);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return (data ?? []).map((p: any) => {
+    const venc = p.fecha_vencimiento ? new Date(p.fecha_vencimiento + "T00:00:00") : today;
+    const diasDiff = Math.floor(
+      (venc.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const nombre = p.client?.nombre ?? p.lead?.nombre ?? "Sin nombre";
+    const telefono = p.client?.telefono ?? p.lead?.telefono ?? null;
+
+    let semaforo: CobranzasQueueItem["semaforo"];
+    if (diasDiff < 0) semaforo = "vencido";
+    else if (diasDiff <= 7) semaforo = "urgente";
+    else if (diasDiff <= 15) semaforo = "proximo";
+    else semaforo = "ok";
+
+    return {
+      id: `payment-${p.id}`,
+      tipo: "cuota" as const,
+      client_id: p.client?.id ?? null,
+      client_nombre: nombre,
+      client_telefono: telefono,
+      client_canal: p.client?.canal_contacto ?? null,
+      monto_usd: p.monto_usd ?? 0,
+      dias_vencido: diasDiff,
+      fecha_vencimiento: p.fecha_vencimiento,
+      semaforo,
+      estado_contacto: p.client?.estado_contacto ?? null,
+      payment_id: p.id,
+      payment_estado: p.estado,
+      numero_cuota: p.numero_cuota,
+      task_id: null,
+      task_tipo: null,
+      task_estado: null,
+      task_asignado_a: null,
+      task_prioridad: diasDiff < 0 ? 1 : diasDiff <= 3 ? 2 : 3,
+      programa: p.client?.programa ?? null,
+      last_log: null,
+    };
+  });
+}
+
 // ========================================
 // AUDIT TYPES & QUERIES
 // ========================================
