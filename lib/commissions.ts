@@ -1,12 +1,15 @@
 /**
- * Commission scheme for Lauti CRM (vigente desde 2026-04-25):
+ * Commission scheme for Lauti CRM (vigente desde 2026-04-25, refinado 2026-04-27):
  *
- * - Iván (closer puro, llamada):       10% flat sobre su cash mensual.
- * - Jorge (closer chat):               Tiered según su cash mensual.
- * - Joaquín (híbrido setter/closer):
- *     - Leads donde es setter Y closer (cerró él):  Tiered sobre su cash mensual de cierres propios.
- *     - Leads donde es solo setter (cerró otro):    5% fijo sobre cash de esos leads.
- * - Otros closers (no nombrados):     Por default, tiered (asumiendo chat).
+ * SETTER (siempre, sin importar quién cierre):
+ *   - 5% flat sobre cash de leads donde fue setter.
+ *
+ * CLOSER:
+ *   - Iván (llamada):           10% flat sobre cash de leads donde fue closer.
+ *   - Jorge/Joaquín (chat):     Tiered 5/7,5/10% según su cash mensual de cierres propios.
+ *   - Otros (default):          Tiered como chat.
+ *
+ * Comisión total = setter + closer (puede sumar ambos roles si la misma persona setteo y cerró).
  *
  * Tiers (sobre el cash mensual del closer):
  *   ≤ $100k       → 5%
@@ -87,58 +90,43 @@ export function computeCommissions(args: {
   for (const t of team) {
     const tipo = classifyCloser(t.nombre);
 
-    // Cash where this member is closer
+    // Cash en TODOS los leads donde fue setter (no importa quien cierre)
+    let cashAsSetter = 0;
+    // Cash en leads donde fue closer
     let cashAsCloser = 0;
-    // Cash where this member is BOTH setter AND closer (for Joaquín tiered piece)
-    let cashAsSelfClose = 0;
-    // Cash where this member is ONLY setter (closer is someone else) — for setter 5% piece
-    let cashAsSetterOnly = 0;
 
     for (const p of payments) {
       const l = leadById.get(p.lead_id);
       if (!l) continue;
-      const isCloser = l.closer_id === t.id;
-      const isSetter = l.setter_id === t.id;
-
-      if (isCloser) {
-        cashAsCloser += p.monto_usd;
-        if (isSetter) cashAsSelfClose += p.monto_usd;
-      } else if (isSetter) {
-        cashAsSetterOnly += p.monto_usd;
-      }
+      if (l.setter_id === t.id) cashAsSetter += p.monto_usd;
+      if (l.closer_id === t.id) cashAsCloser += p.monto_usd;
     }
 
     let comisionCloser = 0;
-    let comisionSetter = 0;
     let tierAplicado = 0;
 
-    if (tipo === "ivan") {
-      // 10% flat sobre cash como closer
-      comisionCloser = cashAsCloser * 0.10;
-      tierAplicado = 0.10;
-    } else if (tipo === "jorge") {
-      tierAplicado = tierPct(cashAsCloser);
-      comisionCloser = cashAsCloser * tierAplicado;
-    } else if (tipo === "joaquin") {
-      // tier sobre los que cerró él (setter+closer)
-      tierAplicado = tierPct(cashAsSelfClose);
-      comisionCloser = cashAsSelfClose * tierAplicado;
-      // 5% fijo sobre los que solo settoeó
-      comisionSetter = cashAsSetterOnly * SETTER_FLAT_PCT;
-    } else {
-      // Default: tiered como Jorge
-      tierAplicado = tierPct(cashAsCloser);
-      comisionCloser = cashAsCloser * tierAplicado;
+    if (cashAsCloser > 0) {
+      if (tipo === "ivan") {
+        comisionCloser = cashAsCloser * 0.10;
+        tierAplicado = 0.10;
+      } else {
+        // jorge / joaquin / otros (chat)
+        tierAplicado = tierPct(cashAsCloser);
+        comisionCloser = cashAsCloser * tierAplicado;
+      }
     }
 
+    // Setter 5% flat sobre TODO lo que setteó (sin importar quién cierre)
+    const comisionSetter = cashAsSetter * SETTER_FLAT_PCT;
+
     const total = comisionCloser + comisionSetter;
-    if (cashAsCloser === 0 && cashAsSelfClose === 0 && cashAsSetterOnly === 0) continue;
+    if (cashAsCloser === 0 && cashAsSetter === 0) continue;
 
     results.push({
       team_member_id: t.id,
       nombre: t.nombre,
       closer_type: tipo,
-      cash_collected: cashAsCloser + cashAsSetterOnly,
+      cash_collected: cashAsCloser + cashAsSetter,
       tier_pct_aplicado: tierAplicado,
       comision_closer: Math.round(comisionCloser * 100) / 100,
       comision_setter: Math.round(comisionSetter * 100) / 100,
