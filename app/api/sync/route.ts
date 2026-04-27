@@ -101,6 +101,17 @@ async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClie
   const limit = opts?.limit ?? allRecords.length;
   const records = allRecords.slice(offset, offset + limit);
 
+  // Setter lookup table → name → UUID
+  const setterRecords = await fetchAllRecords(SETTER_TABLE_ID, ["🙎‍♂️ Nombre Completo"]);
+  const setterIdToUUID = new Map<string, string>();
+  for (const rec of setterRecords) {
+    const name = rec.fields["🙎‍♂️ Nombre Completo"] as string | undefined;
+    if (name) {
+      const uuid = resolveUUID(name);
+      if (uuid) setterIdToUUID.set(rec.id, uuid);
+    }
+  }
+
   const { data: existingLeads } = await supabase
     .from("leads")
     .select("id, airtable_id");
@@ -123,6 +134,14 @@ async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClie
     const at_cash_cuotas_7_7 = Number(f["🏆 Cash Collected del 7 al 7 Cuotas"] || 0);
     const ticket_total = Number(f["💰 Ticket Total"] || 0);
 
+    // Resolve closer (collaborator field) and setter (linked record array)
+    const closerField = f["👤 Closer"] as { name?: string; email?: string } | undefined;
+    const closerName = closerField?.name || closerField?.email || "";
+    const closer_id = closerName ? resolveUUID(closerName) : null;
+
+    const setterRefs = (f["🙎‍♂️ Setter"] as string[] | undefined) || [];
+    const setter_id = setterRefs.length > 0 ? (setterIdToUUID.get(setterRefs[0]) || null) : null;
+
     // Parse payments
     const payments: { numero_cuota: number; monto_usd: number; estado: string; fecha_pago: string | null }[] = [];
     for (let i = 1; i <= 3; i++) {
@@ -142,14 +161,17 @@ async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClie
     const existingId = leadMap.get(airtable_id);
 
     if (existingId) {
+      const updatePatch: Record<string, unknown> = {
+        at_cash_7_7,
+        at_cash_cuotas_7_7,
+        at_cash_total: at_cash_7_7 + at_cash_cuotas_7_7,
+        ticket_total,
+      };
+      if (closer_id) updatePatch.closer_id = closer_id;
+      if (setter_id) updatePatch.setter_id = setter_id;
       const { error } = await supabase
         .from("leads")
-        .update({
-          at_cash_7_7,
-          at_cash_cuotas_7_7,
-          at_cash_total: at_cash_7_7 + at_cash_cuotas_7_7,
-          ticket_total,
-        })
+        .update(updatePatch)
         .eq("id", existingId);
 
       if (error) { errors++; continue; }
@@ -193,6 +215,8 @@ async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClie
           at_cash_cuotas_7_7,
           at_cash_total: at_cash_7_7 + at_cash_cuotas_7_7,
           ticket_total,
+          closer_id,
+          setter_id,
         })
         .select("id")
         .single();
