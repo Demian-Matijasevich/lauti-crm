@@ -95,8 +95,11 @@ function mapEstado(raw: unknown): string {
 }
 
 // ─── Step 1: Sync leads + payments from Airtable ──
-async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClient>) {
-  const records = await fetchAllRecords(REPORTE_TABLE_ID);
+async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClient>, opts?: { offset?: number; limit?: number }) {
+  const allRecords = await fetchAllRecords(REPORTE_TABLE_ID);
+  const offset = opts?.offset ?? 0;
+  const limit = opts?.limit ?? allRecords.length;
+  const records = allRecords.slice(offset, offset + limit);
 
   const { data: existingLeads } = await supabase
     .from("leads")
@@ -214,7 +217,7 @@ async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClie
     }
   }
 
-  return { synced, newLeads, updatedPayments, createdPayments, errors };
+  return { synced, newLeads, updatedPayments, createdPayments, errors, total_records: allRecords.length, offset, limit, processed: records.length };
 }
 
 // ─── Step 2: Sync commissions (NEW SCHEME 2026-04-25) ──────────────────────
@@ -380,13 +383,16 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServerClient();
   const startTime = Date.now();
-  const step = sParam ? new URL(request.url).searchParams.get("step") : null;
+  const urlObj = new URL(request.url);
+  const step = urlObj.searchParams.get("step");
+  const offset = parseInt(urlObj.searchParams.get("offset") || "0");
+  const limit = parseInt(urlObj.searchParams.get("limit") || "0") || undefined;
 
   try {
     const result: Record<string, unknown> = {};
 
     if (!step || step === "leads" || step === "all") {
-      result.leads = await syncLeadsAndPayments(supabase);
+      result.leads = await syncLeadsAndPayments(supabase, { offset, limit });
     }
     if (!step || step === "commissions" || step === "all") {
       result.commissions = await syncCommissions(supabase);
