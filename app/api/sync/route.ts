@@ -339,13 +339,17 @@ async function refreshHealthScores(supabase: ReturnType<typeof createServerClien
 }
 
 // ─── POST handler ──────────────────────────────────
+const ADMIN_SECRET = process.env.LAUTI_ADMIN_SECRET || "lauti-sync-2026";
+
 export async function POST(request: NextRequest) {
-  // Auth: require service role key
+  // Auth: service role key OR admin secret as ?s= query param
   const authHeader = request.headers.get("authorization");
   const serviceKey = request.headers.get("x-service-key");
   const token = (authHeader?.replace("Bearer ", "") || serviceKey || "").trim();
+  const sParam = new URL(request.url).searchParams.get("s");
 
-  if (token !== process.env.SUPABASE_SERVICE_ROLE_KEY?.trim()) {
+  const ok = token === process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || sParam === ADMIN_SECRET;
+  if (!ok) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
