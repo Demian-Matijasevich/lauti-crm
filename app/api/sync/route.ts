@@ -216,100 +216,124 @@ async function syncLeadsAndPayments(supabase: ReturnType<typeof createServerClie
   return { synced, newLeads, updatedPayments, createdPayments, errors };
 }
 
-// ─── Step 2: Sync commissions ──────────────────────
+// ─── Step 2: Sync commissions (NEW SCHEME 2026-04-25) ──────────────────────
+// Iván: 10% flat (llamada). Jorge: tiered (chat). Joaquín: tiered si setter+closer, 5% fijo si solo setter.
+// Mel: cobranzas 10% (sin cambio).
 async function syncCommissions(supabase: ReturnType<typeof createServerClient>) {
-  // Fetch setter lookup
-  const setterRecords = await fetchAllRecords(SETTER_TABLE_ID, ["🙎‍♂️ Nombre Completo"]);
-  const setterIdToName = new Map<string, string>();
-  for (const rec of setterRecords) {
-    const name = rec.fields["🙎‍♂️ Nombre Completo"] as string | undefined;
-    if (name) setterIdToName.set(rec.id, name);
+  // Import commission logic
+  const { computeCommissions } = await import("@/lib/commissions");
+
+  // Get current 7-7 fiscal month range
+  // Fiscal mes 7-7: del día 7 del mes anterior al día 7 del mes actual
+  const today = new Date();
+  let startMonth = today.getMonth();
+  let startYear = today.getFullYear();
+  if (today.getDate() < 7) {
+    startMonth -= 1;
+    if (startMonth < 0) { startMonth = 11; startYear -= 1; }
+  } else {
+    // Current month is the start
   }
+  const start = new Date(startYear, startMonth, 7);
+  const end = new Date(startYear, startMonth + 1, 6, 23, 59, 59);
+  const startStr = start.toISOString().split("T")[0];
+  const endStr = end.toISOString().split("T")[0];
 
-  // Fetch reporte with commission fields
-  const reporteRecords = await fetchAllRecords(REPORTE_TABLE_ID, [
-    "setter del 7 al 7",
-    "closer del 7 al 7",
-    "👤 Closer",
-    "🙎‍♂️ Setter",
-  ]);
+  // Fetch payments in fiscal range
+  const { data: payments } = await supabase
+    .from("payments")
+    .select("lead_id, monto_usd, fecha_pago, estado")
+    .eq("estado", "pagado")
+    .gte("fecha_pago", startStr)
+    .lte("fecha_pago", endStr)
+    .range(0, 9999);
 
-  const closerCommissions = new Map<string, number>();
-  const setterCommissions = new Map<string, number>();
+  // Fetch all leads (for closer_id/setter_id resolution)
+  const { data: leads } = await supabase
+    .from("leads")
+    .select("id, closer_id, setter_id")
+    .range(0, 9999);
 
-  for (const rec of reporteRecords) {
-    const f = rec.fields;
+  // Fetch team
+  const { data: team } = await supabase
+    .from("team_members")
+    .select("id, nombre")
+    .eq("activo", true);
 
-    const closerAmount = Number(f["closer del 7 al 7"] || 0);
-    if (closerAmount > 0) {
-      const closerField = f["👤 Closer"] as { name?: string } | undefined;
-      const closerName = closerField?.name;
-      if (closerName) {
-        closerCommissions.set(closerName, (closerCommissions.get(closerName) || 0) + closerAmount);
-      }
-    }
+  const filteredPays = (payments || [])
+    .filter((p) => p.lead_id)
+    .map((p) => ({ lead_id: p.lead_id as string, monto_usd: Number(p.monto_usd || 0) }));
 
-    const setterAmount = Number(f["setter del 7 al 7"] || 0);
-    if (setterAmount > 0) {
-      const setterIds = (f["🙎‍♂️ Setter"] as string[] | undefined) || [];
-      for (const sid of setterIds) {
-        const setterName = setterIdToName.get(sid);
-        if (setterName) {
-          setterCommissions.set(setterName, (setterCommissions.get(setterName) || 0) + setterAmount);
-        }
-      }
-    }
-  }
+  const results = computeCommissions({
+    payments: filteredPays,
+    leads: (leads || []) as Array<{ id: string; closer_id: string | null; setter_id: string | null }>,
+    team: (team || []) as Array<{ id: string; nombre: string }>,
+  });
 
-  // Mel's cobranzas
+  // Mel's cobranzas (10% sobre cash collected by her — sigue igual)
   const clienteRecords = await fetchAllRecords(CLIENTES_TABLE_ID, ["Cash collected melanie"]);
   let melCashCuotas = 0;
   for (const rec of clienteRecords) {
     melCashCuotas += Number(rec.fields["Cash collected melanie"] || 0);
   }
   const melCobranzas = melCashCuotas * 0.10;
+  const MEL_UUID = "dfab6e35-e6b2-4941-8e64-931da9511f3f";
 
-  // Build commission map per UUID
-  const commissionMap = new Map<string, { closer: number; setter: number; cobranzas: number }>();
-  const ensureEntry = (uuid: string) => {
-    if (!commissionMap.has(uuid)) commissionMap.set(uuid, { closer: 0, setter: 0, cobranzas: 0 });
-    return commissionMap.get(uuid)!;
-  };
-
-  for (const [name, amount] of closerCommissions) {
-    const uuid = resolveUUID(name);
-    if (uuid) ensureEntry(uuid).closer += amount;
-  }
-  for (const [name, amount] of setterCommissions) {
-    const uuid = resolveUUID(name);
-    if (uuid) ensureEntry(uuid).setter += amount;
-  }
-  ensureEntry("dfab6e35-e6b2-4941-8e64-931da9511f3f").cobranzas = melCobranzas;
+  // Check if at_apto_bono column exists
+  const { error: bonoCheck } = await supabase.from("team_members").select("at_apto_bono").limit(1);
+  const hasBonoCol = !bonoCheck;
 
   // Reset all
+  const resetPatch: Record<string, unknown> = { at_comision_closer: 0, at_comision_setter: 0, at_comision_cobranzas: 0, at_comision_total: 0 };
+  if (hasBonoCol) resetPatch.at_apto_bono = false;
   await supabase
     .from("team_members")
-    .update({ at_comision_closer: 0, at_comision_setter: 0, at_comision_cobranzas: 0, at_comision_total: 0 })
+    .update(resetPatch)
     .neq("id", "00000000-0000-0000-0000-000000000000");
 
   // Update each
   let updated = 0;
-  for (const [uuid, comm] of commissionMap) {
-    const total = comm.closer + comm.setter + comm.cobranzas;
-    if (total === 0) continue;
+  for (const r of results) {
+    const cobranzas = r.team_member_id === MEL_UUID ? melCobranzas : 0;
+    const total = r.comision_closer + r.comision_setter + cobranzas;
+    const updatePatch: Record<string, unknown> = {
+      at_comision_closer: r.comision_closer,
+      at_comision_setter: r.comision_setter,
+      at_comision_cobranzas: cobranzas,
+      at_comision_total: total,
+    };
+    if (hasBonoCol) updatePatch.at_apto_bono = r.apto_bono;
     const { error } = await supabase
       .from("team_members")
-      .update({
-        at_comision_closer: comm.closer,
-        at_comision_setter: comm.setter,
-        at_comision_cobranzas: comm.cobranzas,
-        at_comision_total: total,
-      })
-      .eq("id", uuid);
+      .update(updatePatch)
+      .eq("id", r.team_member_id);
     if (!error) updated++;
   }
 
-  return { commissionMembers: updated, melCobranzas };
+  // Mel sola si no apareció en results
+  if (!results.some((r) => r.team_member_id === MEL_UUID) && melCobranzas > 0) {
+    await supabase
+      .from("team_members")
+      .update({ at_comision_cobranzas: melCobranzas, at_comision_total: melCobranzas })
+      .eq("id", MEL_UUID);
+    updated++;
+  }
+
+  return {
+    commissionMembers: updated,
+    melCobranzas,
+    fiscal_month: { from: startStr, to: endStr },
+    breakdown: results.map((r) => ({
+      nombre: r.nombre,
+      tipo: r.closer_type,
+      cash: r.cash_collected,
+      tier_pct: r.tier_pct_aplicado,
+      closer: r.comision_closer,
+      setter: r.comision_setter,
+      total: r.comision_total,
+      apto_bono: r.apto_bono,
+    })),
+  };
 }
 
 // ─── Step 3: Refresh health scores ─────────────────

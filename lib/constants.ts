@@ -1,6 +1,23 @@
-export const COMMISSION_CLOSER = 0.10;
-export const COMMISSION_SETTER = 0.05;
-export const COMMISSION_COBRANZAS = 0.10;
+// Commission scheme (vigente 2026-04-25). Para detalle ver lib/commissions.ts.
+// - Iván (llamada):  10% flat
+// - Jorge (chat):    Tiered 5/7,5/10% (ver tierPct)
+// - Joaquín:         Tiered si setter+closer; 5% fijo si solo setter
+// - Mel cobranzas:   10% sobre cash de cuotas que ella cobra
+export const COMMISSION_CLOSER_FALLBACK = 0.10;     // Iván / closer puro llamada
+export const COMMISSION_SETTER_FLAT = 0.05;          // Joaquín cuando es solo setter
+export const COMMISSION_COBRANZAS = 0.10;            // Mel
+// Tier percentages (cash mensual del closer)
+export const TIER_BASE = 0.05;                       // ≤ $100k
+export const TIER_MID = 0.075;                       // $100k–$150k
+export const TIER_TOP = 0.10;                        // $150k+
+export const TIER_BREAKPOINT_1 = 100000;
+export const TIER_BREAKPOINT_2 = 150000;
+export const BONUS_THRESHOLD = 200000;
+
+// Mantengo aliases viejos para no romper imports existentes (deprecated)
+export const COMMISSION_CLOSER = COMMISSION_CLOSER_FALLBACK;
+export const COMMISSION_SETTER = COMMISSION_SETTER_FLAT;
+
 export const PROGRAM_DURATION_DAYS = 90;
 
 export const PROGRAMS: Record<string, { label: string; precio: number }> = {
