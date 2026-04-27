@@ -1,17 +1,14 @@
 /**
- * Commission scheme for Lauti CRM (vigente desde 2026-04-25, refinado 2026-04-27):
+ * Commission scheme for Lauti CRM (vigente desde 2026-04-27):
  *
- * SETTER (siempre, sin importar quién cierre):
- *   - 5% flat sobre cash de leads donde fue setter.
+ * - Iván (closer puro, llamada):    10% flat sobre cash de leads donde fue closer.
+ * - Jorge / Joaquín (chat closers): Tiered 5/7,5/10% sobre cash de leads donde fueron SETTER
+ *                                   (no importa quién cierre — si setteó, cobra). Reciben todo
+ *                                   por la columna setter; no se paga closer adicional.
+ * - Otros: Tiered como chat (default).
+ * - Mel: cobranzas 10% (manejado fuera de este helper).
  *
- * CLOSER:
- *   - Iván (llamada):           10% flat sobre cash de leads donde fue closer.
- *   - Jorge/Joaquín (chat):     Tiered 5/7,5/10% según su cash mensual de cierres propios.
- *   - Otros (default):          Tiered como chat.
- *
- * Comisión total = setter + closer (puede sumar ambos roles si la misma persona setteo y cerró).
- *
- * Tiers (sobre el cash mensual del closer):
+ * Tiers (sobre el cash mensual donde fueron setter, para chat — o donde cerraron, para llamada):
  *   ≤ $100k       → 5%
  *   $100k–$150k   → 7,5%
  *   $150k–$200k   → 10%
@@ -103,21 +100,21 @@ export function computeCommissions(args: {
     }
 
     let comisionCloser = 0;
+    let comisionSetter = 0;
     let tierAplicado = 0;
+    let cashRelevante = 0; // para tier + bono
 
-    if (cashAsCloser > 0) {
-      if (tipo === "ivan") {
-        comisionCloser = cashAsCloser * 0.10;
-        tierAplicado = 0.10;
-      } else {
-        // jorge / joaquin / otros (chat)
-        tierAplicado = tierPct(cashAsCloser);
-        comisionCloser = cashAsCloser * tierAplicado;
-      }
+    if (tipo === "ivan") {
+      // 10% flat sobre cierres
+      comisionCloser = cashAsCloser * 0.10;
+      tierAplicado = 0.10;
+      cashRelevante = cashAsCloser;
+    } else {
+      // Jorge / Joaquín / chat: tiered sobre lo que setteó (cubre tanto self-close como leads que cierra otro)
+      tierAplicado = tierPct(cashAsSetter);
+      comisionSetter = cashAsSetter * tierAplicado;
+      cashRelevante = cashAsSetter;
     }
-
-    // Setter 5% flat sobre TODO lo que setteó (sin importar quién cierre)
-    const comisionSetter = cashAsSetter * SETTER_FLAT_PCT;
 
     const total = comisionCloser + comisionSetter;
     if (cashAsCloser === 0 && cashAsSetter === 0) continue;
@@ -126,12 +123,12 @@ export function computeCommissions(args: {
       team_member_id: t.id,
       nombre: t.nombre,
       closer_type: tipo,
-      cash_collected: cashAsCloser + cashAsSetter,
+      cash_collected: cashRelevante,
       tier_pct_aplicado: tierAplicado,
       comision_closer: Math.round(comisionCloser * 100) / 100,
       comision_setter: Math.round(comisionSetter * 100) / 100,
       comision_total: Math.round(total * 100) / 100,
-      apto_bono: eligibleForBonus(cashAsCloser),
+      apto_bono: eligibleForBonus(cashRelevante),
     });
   }
 
