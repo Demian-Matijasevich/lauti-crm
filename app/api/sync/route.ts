@@ -380,26 +380,23 @@ export async function POST(request: NextRequest) {
 
   const supabase = createServerClient();
   const startTime = Date.now();
+  const step = sParam ? new URL(request.url).searchParams.get("step") : null;
 
   try {
-    // Step 1: Sync leads + payments
-    const leadsResult = await syncLeadsAndPayments(supabase);
+    const result: Record<string, unknown> = {};
 
-    // Step 2: Sync commissions
-    const commissionsResult = await syncCommissions(supabase);
-
-    // Step 3: Refresh health scores
-    const healthResult = await refreshHealthScores(supabase);
+    if (!step || step === "leads" || step === "all") {
+      result.leads = await syncLeadsAndPayments(supabase);
+    }
+    if (!step || step === "commissions" || step === "all") {
+      result.commissions = await syncCommissions(supabase);
+    }
+    if (!step || step === "health" || step === "all") {
+      result.health = await refreshHealthScores(supabase);
+    }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-
-    return NextResponse.json({
-      success: true,
-      duration_seconds: duration,
-      leads: leadsResult,
-      commissions: commissionsResult,
-      health: healthResult,
-    });
+    return NextResponse.json({ success: true, duration_seconds: duration, step: step || "all", ...result });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[POST /api/sync]", err);
