@@ -67,7 +67,7 @@ export default async function DashboardPage() {
       // Mel's team_member record for commission
       supabaseMel
         .from("team_members")
-        .select("id, nombre, at_comision_closer, at_comision_setter, at_comision_cobranzas, at_comision_total")
+        .select("id, nombre, at_comision_closer, at_comision_setter, at_comision_cobranzas, at_comision_total, at_apto_bono")
         .eq("id", session.team_member_id)
         .single(),
       // Paid this week for weekly chart
@@ -179,7 +179,7 @@ export default async function DashboardPage() {
       supabase.from("v_commissions").select("*"),
       supabase.from("leads").select("at_cash_7_7,at_cash_cuotas_7_7,ticket_total").gt("at_cash_7_7", 0),
       supabase.from("team_members")
-        .select("id,nombre,at_comision_closer,at_comision_setter,at_comision_cobranzas,at_comision_total")
+        .select("id,nombre,at_comision_closer,at_comision_setter,at_comision_cobranzas,at_comision_total,at_apto_bono")
         .gt("at_comision_total", 0),
       // Revenue prediction: pending payments in fiscal period
       supabase

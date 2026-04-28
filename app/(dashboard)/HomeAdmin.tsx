@@ -573,9 +573,12 @@ export default function HomeAdmin({
 
       {/* Comisiones del Equipo */}
       <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-6">
-        <h2 className="text-lg font-semibold text-white mb-4">
+        <h2 className="text-lg font-semibold text-white mb-1">
           Comisiones del Equipo
         </h2>
+        <p className="text-xs text-[var(--muted)] mb-4">
+          Iv\u00e1n: 10% (closer llamada) \u00b7 Jorge/Joaqu\u00edn: tiered 5/7,5/10% (setter chat) \u00b7 Mel: 10% cobranzas \u00b7 Bono &gt; $200k
+        </p>
         {monthCommissions.length === 0 ? (
           <p className="text-[var(--muted)] text-sm py-4 text-center">
             Sin comisiones en este periodo
@@ -586,14 +589,17 @@ export default function HomeAdmin({
               <thead>
                 <tr className="text-left text-[var(--muted)] border-b border-[var(--card-border)]">
                   <th className="pb-3 pr-4 font-medium">Nombre</th>
-                  <th className="pb-3 pr-4 font-medium text-right">Closer (10%)</th>
-                  <th className="pb-3 pr-4 font-medium text-right">Setter (5%)</th>
-                  <th className="pb-3 pr-4 font-medium text-right">Cobranzas (10%)</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Closer</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Setter</th>
+                  <th className="pb-3 pr-4 font-medium text-right">Cobranzas</th>
+                  <th className="pb-3 pr-4 font-medium text-center">Bono</th>
                   <th className="pb-3 font-medium text-right">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {monthCommissions.map((c) => (
+                {monthCommissions.map((c) => {
+                  const ac = c as typeof c & { at_apto_bono?: boolean };
+                  return (
                   <tr
                     key={c.id}
                     className="border-b border-[var(--card-border)]/50"
@@ -608,11 +614,15 @@ export default function HomeAdmin({
                     <td className="py-3 pr-4 text-right text-[var(--muted)]">
                       {c.at_comision_cobranzas > 0 ? formatUSD(c.at_comision_cobranzas) : "\u2014"}
                     </td>
+                    <td className="py-3 pr-4 text-center">
+                      {ac.at_apto_bono ? <span title="Cash &gt; \$200k \u2192 apto bono" className="text-yellow-400">\ud83c\udf1f</span> : <span className="text-[var(--muted)]">\u2014</span>}
+                    </td>
                     <td className="py-3 text-right text-white font-bold">
                       {formatUSD(c.at_comision_total)}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-[var(--card-border)]">
@@ -626,6 +636,7 @@ export default function HomeAdmin({
                   <td className="pt-3 pr-4 text-right text-white font-semibold">
                     {formatUSD(commissionTotals.cobranzas)}
                   </td>
+                  <td className="pt-3 pr-4"></td>
                   <td className="pt-3 text-right text-[var(--green)] font-bold text-base">
                     {formatUSD(commissionTotals.total)}
                   </td>

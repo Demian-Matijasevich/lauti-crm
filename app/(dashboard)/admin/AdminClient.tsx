@@ -690,22 +690,27 @@ export default function AdminClient({ team, paymentMethods, objectives = [] }: P
       {/* TAB: Comisiones */}
       {activeTab === "comisiones" && (
         <div className="bg-[var(--card-bg)] border border-[var(--card-border)] rounded-xl p-4 space-y-4">
-          <h3 className="text-sm font-semibold text-white">Estructura de Comisiones</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <h3 className="text-sm font-semibold text-white">Estructura de Comisiones (vigente 2026-04)</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-[var(--background)] border border-[var(--card-border)] rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-[var(--purple)]">{formatPct(COMMISSION_CLOSER)}</p>
-              <p className="text-sm text-[var(--muted)] mt-1">Closer</p>
-              <p className="text-xs text-[var(--muted)] mt-2">Sobre cash collected de ventas donde es closer del lead</p>
+              <p className="text-3xl font-bold text-[var(--purple)]">10%</p>
+              <p className="text-sm text-[var(--muted)] mt-1">Iván — Closer llamada</p>
+              <p className="text-xs text-[var(--muted)] mt-2">Flat sobre cash collected de leads que cierra él</p>
             </div>
             <div className="bg-[var(--background)] border border-[var(--card-border)] rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-green-400">{formatPct(COMMISSION_SETTER)}</p>
-              <p className="text-sm text-[var(--muted)] mt-1">Setter</p>
-              <p className="text-xs text-[var(--muted)] mt-2">Sobre cash collected de ventas donde es setter del lead</p>
+              <p className="text-3xl font-bold text-green-400">5 / 7,5 / 10%</p>
+              <p className="text-sm text-[var(--muted)] mt-1">Jorge & Joaquín — Setter chat</p>
+              <p className="text-xs text-[var(--muted)] mt-2">Tier sobre cash mensual donde son setter:<br/>≤ $100k → 5% · $100k–150k → 7,5% · $150k+ → 10%</p>
             </div>
             <div className="bg-[var(--background)] border border-[var(--card-border)] rounded-lg p-4 text-center">
-              <p className="text-3xl font-bold text-yellow-400">{formatPct(COMMISSION_COBRANZAS)}</p>
-              <p className="text-sm text-[var(--muted)] mt-1">Cobranzas</p>
-              <p className="text-xs text-[var(--muted)] mt-2">Sobre cuotas y renovaciones que cobran directamente</p>
+              <p className="text-3xl font-bold text-yellow-400">10%</p>
+              <p className="text-sm text-[var(--muted)] mt-1">Mel — Cobranzas</p>
+              <p className="text-xs text-[var(--muted)] mt-2">Sobre cuotas y renovaciones que cobra</p>
+            </div>
+            <div className="bg-[var(--background)] border border-[var(--card-border)] rounded-lg p-4 text-center">
+              <p className="text-3xl font-bold text-yellow-300">🌟 Bono</p>
+              <p className="text-sm text-[var(--muted)] mt-1">Cash &gt; $200k mensual</p>
+              <p className="text-xs text-[var(--muted)] mt-2">Marca apto para bono adicional (sobre tier 10%)</p>
             </div>
           </div>
 
